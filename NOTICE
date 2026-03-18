@@ -1,0 +1,73 @@
+NOTICE — thingino-cloner
+
+This file documents the origins of components in this project.
+
+================================================================================
+1. Original Code
+================================================================================
+
+All source code in this repository (libcloner/, cli/, cloner-remote/, android/,
+tests/, scripts/) was written independently by the thingino project contributors.
+No source code was copied from Ingenic's proprietary cloner tool or any other
+proprietary software.
+
+================================================================================
+2. USB Protocol
+================================================================================
+
+The Ingenic USB boot protocol used by this tool was determined through clean-room
+reverse engineering of USB traffic between Ingenic devices and the vendor tool,
+using standard USB analysis tools (Wireshark, USBPcap). This was done for the
+purpose of hardware interoperability, which is permitted under:
+
+  - U.S. Copyright Act §117 and DMCA §1201(f) (interoperability exception)
+  - EU Software Directive 2009/24/EC, Article 6 (decompilation for interoperability)
+
+The USB vendor request codes (0x00-0x26) and bulk transfer protocol are
+functional interfaces required to communicate with Ingenic SoC hardware.
+Functional interfaces are not copyrightable (Lotus v. Borland, Oracle v. Google).
+
+================================================================================
+3. Firmware Binaries (firmwares/)
+================================================================================
+
+The SPL (Secondary Program Loader) and U-Boot binaries in the firmwares/
+directory are compiled from Ingenic's fork of Das U-Boot, which is licensed
+under the GNU General Public License version 2 (GPL-2.0). These binaries are
+redistributed under the terms of GPL-2.0.
+
+These binaries run on the target Ingenic SoC during the bootstrap process.
+They are not executed on the host computer.
+
+================================================================================
+4. DDR Configuration
+================================================================================
+
+DDR timing parameters are derived from publicly available DDR chip datasheets
+(ESMT, Winbond, Samsung, etc.) and are functional hardware specifications.
+The DDR binary format was determined through analysis of USB traffic to
+understand the register layout required by Ingenic's DDR controller hardware.
+
+================================================================================
+5. Flash Chip Database
+================================================================================
+
+SPI NOR and NAND flash chip parameters (JEDEC IDs, timing, commands) are
+derived from publicly available chip datasheets. JEDEC IDs are industry-standard
+identifiers defined by JEDEC Solid State Technology Association.
+
+================================================================================
+6. Trademarks
+================================================================================
+
+"Ingenic" is a trademark of Ingenic Semiconductor Co., Ltd. The thingino
+project is not affiliated with, endorsed by, or sponsored by Ingenic
+Semiconductor. Use of the Ingenic name is solely for identification of
+compatible hardware.
+
+================================================================================
+7. License
+================================================================================
+
+This project is licensed under the GNU General Public License version 2
+(GPL-2.0). See the LICENSE file for the full license text.

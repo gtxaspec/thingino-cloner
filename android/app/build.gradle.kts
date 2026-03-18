@@ -1,0 +1,91 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.thingino.cloner"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.thingino.cloner"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments("-DANDROID_STL=none")
+                cFlags("-DANDROID")
+            }
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../thingino-release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "thingino-cloner"
+            keyAlias = "thingino"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "thingino-cloner"
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+            keepDebugSymbols += listOf("**/*.so")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/jni/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    // Follow symlinks when packaging assets
+    androidResources {
+        noCompress += listOf("bin")
+    }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDirs("src/main/assets")
+        }
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+}

@@ -1,0 +1,261 @@
+package com.thingino.cloner
+
+import java.io.InputStream
+import java.io.OutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.zip.CRC32
+
+/**
+ * TCP client for the cloner-remote daemon binary protocol.
+ * Pure Kotlin — no JNI or USB dependency.
+ */
+class RemoteClient(private val callback: ClonerBridge.NativeCallback?) {
+
+    companion object {
+        const val MAGIC = 0x434C4E52 // "CLNR"
+        const val VERSION: Byte = 1
+        const val DEFAULT_PORT = 5050
+        const val CONNECT_TIMEOUT_MS = 5000
+        const val READ_TIMEOUT_MS = 300_000 // 5 min for long operations
+
+        // Commands
+        const val CMD_DISCOVER: Byte = 0x01
+        const val CMD_BOOTSTRAP: Byte = 0x02
+        const val CMD_WRITE: Byte = 0x03
+        const val CMD_READ: Byte = 0x04
+        const val CMD_STATUS: Byte = 0x05
+        const val CMD_CANCEL: Byte = 0x06
+
+        // Response status
+        const val RESP_OK: Byte = 0x00
+        const val RESP_ERROR: Byte = 0x01
+        const val RESP_PROGRESS: Byte = 0x02
+
+        val VARIANT_NAMES = listOf(
+            "t10", "t20", "t21", "t23", "t30", "t31", "t31x", "t31zx",
+            "t31a", "a1", "t40", "t41", "t32", "x1000", "x1600", "x1700",
+            "x2000", "x2100", "x2600"
+        )
+    }
+
+    data class DeviceEntry(
+        val bus: Int,
+        val address: Int,
+        val vendor: Int,
+        val product: Int,
+        val stage: Int,
+        val variant: Int
+    ) {
+        val stageName: String get() = if (stage == 0) "bootrom" else "firmware"
+        val variantName: String get() = VARIANT_NAMES.getOrElse(variant) { "unknown" }
+        override fun toString(): String =
+            "${variantName.uppercase()} $stageName (Bus $bus Addr $address)"
+    }
+
+    private var socket: Socket? = null
+    private var input: InputStream? = null
+    private var output: OutputStream? = null
+
+    fun connect(host: String, port: Int = DEFAULT_PORT, token: String? = null): Boolean {
+        return try {
+            val sock = Socket()
+            sock.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            sock.soTimeout = READ_TIMEOUT_MS
+            socket = sock
+            input = sock.getInputStream()
+            output = sock.getOutputStream()
+
+            if (token != null) {
+                val tokenBytes = token.toByteArray(Charsets.UTF_8)
+                val buf = ByteBuffer.allocate(6 + tokenBytes.size).order(ByteOrder.BIG_ENDIAN)
+                buf.putInt(MAGIC)
+                buf.put(VERSION)
+                buf.put(tokenBytes.size.toByte())
+                buf.put(tokenBytes)
+                output!!.write(buf.array())
+                output!!.flush()
+
+                val (status, _) = readResponse()
+                if (status != RESP_OK) {
+                    callback?.onLog("Authentication failed\n")
+                    disconnect()
+                    return false
+                }
+            }
+            true
+        } catch (e: Exception) {
+            callback?.onLog("Connection failed: ${e.message}\n")
+            disconnect()
+            false
+        }
+    }
+
+    fun disconnect() {
+        try { socket?.close() } catch (_: Exception) {}
+        socket = null
+        input = null
+        output = null
+    }
+
+    fun isConnected(): Boolean = socket?.isConnected == true && socket?.isClosed == false
+
+    fun discover(): List<DeviceEntry> {
+        sendRequest(CMD_DISCOVER)
+        val payload = drainResponses() ?: return emptyList()
+
+        val devices = mutableListOf<DeviceEntry>()
+        val buf = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN)
+        while (buf.remaining() >= 8) {
+            devices.add(DeviceEntry(
+                bus = buf.get().toInt() and 0xFF,
+                address = buf.get().toInt() and 0xFF,
+                vendor = buf.short.toInt() and 0xFFFF,
+                product = buf.short.toInt() and 0xFFFF,
+                stage = buf.get().toInt() and 0xFF,
+                variant = buf.get().toInt() and 0xFF
+            ))
+        }
+        return devices
+    }
+
+    fun bootstrap(deviceIndex: Int, variant: String): Boolean {
+        val variantBytes = variant.toByteArray(Charsets.UTF_8)
+        val payload = ByteArray(2 + variantBytes.size)
+        payload[0] = deviceIndex.toByte()
+        payload[1] = variantBytes.size.toByte()
+        System.arraycopy(variantBytes, 0, payload, 2, variantBytes.size)
+
+        sendRequest(CMD_BOOTSTRAP, payload)
+        return drainResponses() != null
+    }
+
+    fun readFirmware(deviceIndex: Int, variant: String): ByteArray? {
+        val variantBytes = variant.toByteArray(Charsets.UTF_8)
+        val payload = ByteArray(2 + variantBytes.size)
+        payload[0] = deviceIndex.toByte()
+        payload[1] = variantBytes.size.toByte()
+        System.arraycopy(variantBytes, 0, payload, 2, variantBytes.size)
+
+        sendRequest(CMD_READ, payload)
+        val response = drainResponses() ?: return null
+
+        if (response.size < 4) {
+            callback?.onLog("ERROR: Response too small for CRC32\n")
+            return null
+        }
+
+        val fwData = response.copyOfRange(0, response.size - 4)
+        val receivedCrc = ByteBuffer.wrap(response, response.size - 4, 4)
+            .order(ByteOrder.BIG_ENDIAN).int.toLong() and 0xFFFFFFFFL
+
+        val crc = CRC32()
+        crc.update(fwData)
+        if (crc.value != receivedCrc) {
+            callback?.onLog("ERROR: CRC32 mismatch (expected ${receivedCrc.toString(16)}, got ${crc.value.toString(16)})\n")
+            return null
+        }
+
+        return fwData
+    }
+
+    fun writeFirmware(deviceIndex: Int, variant: String, firmwareData: ByteArray): Boolean {
+        val variantBytes = variant.toByteArray(Charsets.UTF_8)
+
+        val crc = CRC32()
+        crc.update(firmwareData)
+        val crcValue = crc.value.toInt()
+
+        val buf = ByteBuffer.allocate(2 + variantBytes.size + 4 + firmwareData.size + 4)
+            .order(ByteOrder.BIG_ENDIAN)
+        buf.put(deviceIndex.toByte())
+        buf.put(variantBytes.size.toByte())
+        buf.put(variantBytes)
+        buf.putInt(firmwareData.size)
+        buf.put(firmwareData)
+        buf.putInt(crcValue)
+
+        sendRequest(CMD_WRITE, buf.array())
+        return drainResponses() != null
+    }
+
+    fun cancel(): Boolean {
+        sendRequest(CMD_CANCEL)
+        return drainResponses() != null
+    }
+
+    // --- Private protocol helpers ---
+
+    private fun sendRequest(command: Byte, payload: ByteArray = ByteArray(0)) {
+        val out = output ?: throw IllegalStateException("Not connected")
+        val header = ByteBuffer.allocate(10).order(ByteOrder.BIG_ENDIAN)
+        header.putInt(MAGIC)
+        header.put(VERSION)
+        header.put(command)
+        header.putInt(payload.size)
+        out.write(header.array())
+        if (payload.isNotEmpty()) {
+            out.write(payload)
+        }
+        out.flush()
+    }
+
+    private fun readResponse(): Pair<Byte, ByteArray> {
+        val inp = input ?: throw IllegalStateException("Not connected")
+        val headerBuf = readExact(inp, 10)
+        val header = ByteBuffer.wrap(headerBuf).order(ByteOrder.BIG_ENDIAN)
+
+        val magic = header.int
+        if (magic != MAGIC) {
+            throw RuntimeException("Bad magic: 0x${magic.toString(16)}")
+        }
+        header.get() // version
+        val status = header.get()
+        val payloadLen = header.int
+
+        val payload = if (payloadLen > 0) readExact(inp, payloadLen) else ByteArray(0)
+        return Pair(status, payload)
+    }
+
+    private fun drainResponses(): ByteArray? {
+        while (true) {
+            val (status, payload) = readResponse()
+            when (status) {
+                RESP_PROGRESS -> {
+                    if (payload.size >= 4) {
+                        val percent = payload[0].toInt() and 0xFF
+                        val msgLen = ((payload[2].toInt() and 0xFF) shl 8) or
+                                     (payload[3].toInt() and 0xFF)
+                        val msg = if (msgLen > 0 && payload.size >= 4 + msgLen)
+                            String(payload, 4, msgLen, Charsets.UTF_8) else ""
+                        callback?.onProgress(percent, "remote", msg)
+                    }
+                }
+                RESP_OK -> return payload
+                RESP_ERROR -> {
+                    val errMsg = if (payload.isNotEmpty())
+                        String(payload, Charsets.UTF_8) else "Unknown error"
+                    callback?.onLog("ERROR: $errMsg\n")
+                    return null
+                }
+                else -> {
+                    callback?.onLog("ERROR: Unexpected response status $status\n")
+                    return null
+                }
+            }
+        }
+    }
+
+    private fun readExact(stream: InputStream, count: Int): ByteArray {
+        val buf = ByteArray(count)
+        var offset = 0
+        while (offset < count) {
+            val n = stream.read(buf, offset, count - offset)
+            if (n < 0) throw RuntimeException("Connection closed")
+            offset += n
+        }
+        return buf
+    }
+}

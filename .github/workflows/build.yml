@@ -1,0 +1,199 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev zlib1g-dev
+
+      - name: Build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Run tests
+        run: cd build && ctest --output-on-failure
+
+      - name: Package
+        run: |
+          mkdir -p dist/thingino-cloner-linux-x86_64
+          cp build/cli/thingino-cloner dist/thingino-cloner-linux-x86_64/
+          [ -f build/cloner-remote/cloner-remote ] && cp build/cloner-remote/cloner-remote dist/thingino-cloner-linux-x86_64/ || true
+          cp -r firmwares dist/thingino-cloner-linux-x86_64/
+          cd dist && tar czf thingino-cloner-linux-x86_64.tar.gz thingino-cloner-linux-x86_64
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: thingino-cloner-linux-x86_64
+          path: dist/thingino-cloner-linux-x86_64.tar.gz
+
+  build-linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev zlib1g-dev
+
+      - name: Build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Run tests
+        run: cd build && ctest --output-on-failure
+
+      - name: Package
+        run: |
+          mkdir -p dist/thingino-cloner-linux-aarch64
+          cp build/cli/thingino-cloner dist/thingino-cloner-linux-aarch64/
+          [ -f build/cloner-remote/cloner-remote ] && cp build/cloner-remote/cloner-remote dist/thingino-cloner-linux-aarch64/ || true
+          cp -r firmwares dist/thingino-cloner-linux-aarch64/
+          cd dist && tar czf thingino-cloner-linux-aarch64.tar.gz thingino-cloner-linux-aarch64
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: thingino-cloner-linux-aarch64
+          path: dist/thingino-cloner-linux-aarch64.tar.gz
+
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 p7zip-full
+
+      - name: Build
+        run: make win64
+
+      - name: Package
+        run: |
+          mkdir -p dist/thingino-cloner-windows-x64
+          cp build-win64/cli/thingino-cloner.exe dist/thingino-cloner-windows-x64/
+          cp build-win64/cli/libusb-1.0.dll dist/thingino-cloner-windows-x64/
+          cp -r firmwares dist/thingino-cloner-windows-x64/
+          cd dist && zip -r thingino-cloner-windows-x64.zip thingino-cloner-windows-x64
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: thingino-cloner-windows-x64
+          path: dist/thingino-cloner-windows-x64.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: brew install pkg-config
+
+      - name: Build libusb universal
+        run: |
+          curl -sL https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2 | tar xj
+          cd libusb-1.0.27
+          ./configure --disable-dependency-tracking CFLAGS="-arch arm64 -arch x86_64" LDFLAGS="-arch arm64 -arch x86_64" --prefix=$PWD/../libusb-universal
+          make -j$(sysctl -n hw.ncpu) && make install
+
+      - name: Build universal binary
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_PREFIX_PATH=$PWD/../libusb-universal
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Verify universal binary
+        run: file build/cli/thingino-cloner
+
+      - name: Run tests
+        run: cd build && ctest --output-on-failure
+
+      - name: Package
+        run: |
+          mkdir -p dist/thingino-cloner-macos-universal
+          cp build/cli/thingino-cloner dist/thingino-cloner-macos-universal/
+          cp -r firmwares dist/thingino-cloner-macos-universal/
+          cd dist && tar czf thingino-cloner-macos-universal.tar.gz thingino-cloner-macos-universal
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: thingino-cloner-macos-universal
+          path: dist/thingino-cloner-macos-universal.tar.gz
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/thingino-release.jks
+
+      - name: Build APK
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          rm -rf app/src/main/assets/firmwares
+          mkdir -p app/src/main/assets
+          cp -r ../firmwares app/src/main/assets/firmwares
+          ./gradlew assembleRelease
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk dist/thingino-cloner-android.apk
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: thingino-cloner-android
+          path: dist/thingino-cloner-android.apk
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux-x86_64, build-linux-aarch64, build-windows, build-macos, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/thingino-cloner-linux-x86_64/*.tar.gz
+            artifacts/thingino-cloner-linux-aarch64/*.tar.gz
+            artifacts/thingino-cloner-windows-x64/*.zip
+            artifacts/thingino-cloner-macos-universal/*.tar.gz
+            artifacts/thingino-cloner-android/*.apk
+          generate_release_notes: true
