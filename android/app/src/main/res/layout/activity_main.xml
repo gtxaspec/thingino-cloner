@@ -124,6 +124,13 @@
                 android:textColor="?attr/colorPrimary"
                 android:textStyle="bold"
                 android:layout_marginTop="4dp" />
+
+            <Spinner
+                android:id="@+id/deviceSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:visibility="gone" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

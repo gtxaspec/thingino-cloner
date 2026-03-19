@@ -12,8 +12,11 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.RadioGroup
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -48,6 +51,7 @@ class MainActivity : AppCompatActivity(), UsbHelper.DeviceListener, ClonerBridge
     private lateinit var progressText: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var logText: TextView
+    private lateinit var deviceSpinner: Spinner
 
     // Mode selection UI
     private lateinit var modeRadioGroup: RadioGroup
@@ -90,6 +94,19 @@ class MainActivity : AppCompatActivity(), UsbHelper.DeviceListener, ClonerBridge
         progressText = findViewById(R.id.progressText)
         logScroll = findViewById(R.id.logScroll)
         logText = findViewById(R.id.logText)
+        deviceSpinner = findViewById(R.id.deviceSpinner)
+
+        deviceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
+                if (isRemoteMode && remoteDevices.isNotEmpty()) {
+                    selectedDeviceIndex = pos
+                    val dev = remoteDevices[pos]
+                    detectedSoc = dev.variantName
+                    socText.text = "SoC: ${dev.variantName.uppercase()} (${dev.stageName})"
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
 
         // Mode selection UI
         modeRadioGroup = findViewById(R.id.modeRadioGroup)
@@ -112,6 +129,7 @@ class MainActivity : AppCompatActivity(), UsbHelper.DeviceListener, ClonerBridge
         modeRadioGroup.setOnCheckedChangeListener { _, checkedId ->
             isRemoteMode = checkedId == R.id.radioRemote
             remoteInputRow.visibility = if (isRemoteMode) View.VISIBLE else View.GONE
+            deviceSpinner.visibility = View.GONE
             setButtonsEnabled(false)
             detectedSoc = ""
             socText.text = ""
@@ -255,6 +273,7 @@ class MainActivity : AppCompatActivity(), UsbHelper.DeviceListener, ClonerBridge
                 if (devices.isEmpty()) {
                     updateStatus("Connected — no devices found")
                     socText.text = ""
+                    deviceSpinner.visibility = View.GONE
                     appendLog("No Ingenic devices found on daemon\n")
                 } else {
                     val dev = devices[0]
@@ -266,6 +285,18 @@ class MainActivity : AppCompatActivity(), UsbHelper.DeviceListener, ClonerBridge
                     devices.forEachIndexed { i, d ->
                         appendLog("  [$i] $d\n")
                     }
+
+                    if (devices.size > 1) {
+                        val names = devices.map { it.toString() }
+                        deviceSpinner.adapter = ArrayAdapter(
+                            this@MainActivity,
+                            android.R.layout.simple_spinner_dropdown_item,
+                            names
+                        )
+                        deviceSpinner.visibility = View.VISIBLE
+                    } else {
+                        deviceSpinner.visibility = View.GONE
+                    }
                 }
             }
         }
@@ -276,6 +307,7 @@ class MainActivity : AppCompatActivity(), UsbHelper.DeviceListener, ClonerBridge
         remoteClient = null
         remoteDevices = emptyList()
         setButtonsEnabled(false)
+        deviceSpinner.visibility = View.GONE
         connectButton.text = getString(R.string.btn_connect)
         connectButton.isEnabled = true
         if (isRemoteMode) {
