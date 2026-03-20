@@ -231,13 +231,13 @@ thingino_error_t list_devices(usb_manager_t *manager) {
     }
 
     printf("Found %d device(s):\n", device_count);
-    printf("Index | Bus | Addr | Vendor  | Product | Stage    | Variant\n");
-    printf("-----|-----|------|---------|----------|--------\n");
+    printf("Index | Bus | Addr | Vendor  | Product | Stage\n");
+    printf("------|-----|------|---------|---------|----------\n");
 
     for (int i = 0; i < device_count; i++) {
         device_info_t *dev = &devices[i];
-        printf("%5d | %3d | %4d | 0x%04X  | 0x%04X  | %-8s | %s\n", i, dev->bus, dev->address, dev->vendor,
-               dev->product, device_stage_to_string(dev->stage), processor_variant_to_string(dev->variant));
+        printf("  %3d | %3d | %4d | 0x%04X  | 0x%04X  | %s\n", i, dev->bus, dev->address, dev->vendor, dev->product,
+               device_stage_to_string(dev->stage));
     }
 
     printf("\n");
