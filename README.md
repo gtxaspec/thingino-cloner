@@ -136,7 +136,7 @@ Protocol uses TCP port 5050. Not available on Windows.
 
 ## Hardware Databases
 
-All chip data is compiled in,no config files at runtime:
+All chip data is compiled in, no config files at runtime:
 
 - **DDR chips:** 36 entries (DDR2, DDR3, LPDDR2)
 - **SPI NOR flash:** 49 entries
