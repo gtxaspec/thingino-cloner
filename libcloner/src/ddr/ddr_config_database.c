@@ -279,6 +279,19 @@ static const processor_config_t processor_configs[] = {
         .ddr_cs1 = 0,
     },
     {
+        /* T31AL: DDR2 variant, uses same config as T31X */
+        .name = "t31al",        .crystal_freq = 24000000,
+        .cpu_freq = 576000000,  .ddr_freq = 400000000,
+        .uart_baud = 115200,    .mem_size = 8 * 1024 * 1024,
+        .d2i_len = 0x7000,      .ginfo_addr = 0x80001000,
+        .spl_addr = 0x80001800, .uboot_addr = 0x80100000,
+        .uart_idx = 1,          .ginfo_ddr_params_size = 0,
+        .use_fidb_header = 1,   .use_inno_phy_rdd = 1,
+        .is_xburst2 = 0,        .ddr_bank8 = 1,
+        .ddr_dw32 = 0,          .ddr_cs0 = 1,
+        .ddr_cs1 = 0,
+    },
+    {
         .name = "t31nl",
         .crystal_freq = 24000000,
         .cpu_freq = 576000000,
@@ -2031,6 +2044,7 @@ static const struct {
     {"t31", "M14D1G1664A_DDR2"},     {"t31x", "M14D1G1664A_DDR2"},
     {"t31zx", "M14D1G1664A_DDR2"},   {"t31a", "DDR3_M15T1G1664A_2C"}, /* vendor: DDR3_M15T1G1664A_2C */
     {"c100", "DDR3_M15T1G1664A_2C"},                                  /* alias for t31a */
+    {"t31al", "M14D1G1664A_DDR2"},                                    /* T31AL: DDR2, distinct from T31A */
     {"t31nl", "M14D5121632A_DDR2"},                                   /* vendor: M14D5121632A_DDR2 */
     {"t40", "M14D5121632A_DDR2"},                                     /* vendor t40n: DDR2 (t40a uses DDR3) */
     {"t41", "DDR3_W631GU6NG"},                                        /* vendor: DDR3_W631GU6NG */

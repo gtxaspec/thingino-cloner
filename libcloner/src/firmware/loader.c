@@ -29,6 +29,7 @@ static const char *variant_to_firmware_dir(processor_variant_t variant) {
     case VARIANT_A1:
         return "a1_n_ne_x";
     case VARIANT_T31ZX:
+    case VARIANT_T31AL:
         return "t31x";
     default:
         return processor_variant_to_string(variant);

@@ -842,11 +842,14 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         break;
     case 0x0031:
         /* T31 family — DDR type depends on sub-variant:
-         *   DDR3: T31A (0x4444), T31AL (0xCCCC)
+         *   DDR3: T31A (0x4444)
+         *   DDR2: T31AL (0xCCCC)
          *   DDR2: T31X (0x2222), T31N (0x1111), T31L (0x3333),
          *         T31ZX (0x6666), T31ZL (0x5555), T31ZC (0xDDDD), T31LC (0xEEEE) */
-        if (subtype1 == 0x4444 || subtype1 == 0xCCCC)
+        if (subtype1 == 0x4444)
             *variant = VARIANT_T31A; /* DDR3 */
+        else if (subtype1 == 0xCCCC)
+            *variant = VARIANT_T31AL; /* DDR2 */
         else if (subtype1 == 0x6666)
             *variant = VARIANT_T31ZX; /* DDR2, USB re-enumerate after SPL */
         else
