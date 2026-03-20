@@ -4,6 +4,12 @@
 #include "remote.h"
 #include "ddr_config_database.h"
 #include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <libgen.h>
+#include <limits.h>
+#endif
 
 // ============================================================================
 // GLOBAL DEBUG FLAG
@@ -252,11 +258,40 @@ thingino_error_t list_devices(usb_manager_t *manager) {
 int main(int argc, char *argv[]) {
     fprintf(stderr, "thingino-cloner %s (%s)\n", VERSION, GIT_HASH);
 
+    /* Resolve default firmware dir relative to the binary location */
+    static char default_fw_dir[4096];
+#ifdef _WIN32
+    {
+        char exe_path[4096];
+        GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+        char *last_sep = strrchr(exe_path, '\\');
+        if (last_sep)
+            *last_sep = '\0';
+        snprintf(default_fw_dir, sizeof(default_fw_dir), "%s\\firmwares", exe_path);
+    }
+#else
+    {
+        char exe_path[4096];
+        ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+        if (len > 0) {
+            exe_path[len] = '\0';
+            char *dir = dirname(exe_path);
+            snprintf(default_fw_dir, sizeof(default_fw_dir), "%s/firmwares", dir);
+        } else {
+            snprintf(default_fw_dir, sizeof(default_fw_dir), "./firmwares");
+        }
+    }
+#endif
+
     cli_options_t options;
     thingino_error_t result = parse_arguments(argc, argv, &options);
     if (result != THINGINO_SUCCESS) {
         return 1;
     }
+
+    /* Use binary-relative firmware dir if user didn't specify one */
+    if (!options.firmware_dir)
+        options.firmware_dir = default_fw_dir;
 
     // Set global debug flag based on CLI options
     g_debug_enabled = options.debug;
