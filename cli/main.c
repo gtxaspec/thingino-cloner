@@ -305,87 +305,58 @@ int main(int argc, char *argv[]) {
         return rc < 0 ? 1 : 0;
     }
 
-    // Local mode: use public core API
-    cloner_error_t cerr = cloner_init();
-    if (cerr != CLONER_OK) {
-        printf("Failed to initialize cloner: %d\n", cerr);
+    // Local mode
+    if (!options.list_devices && !options.bootstrap && !options.read_firmware && !options.write_firmware) {
+        printf("No action specified. Use -h for help.\n");
+        return 1;
+    }
+
+    usb_manager_t manager;
+    result = usb_manager_init(&manager);
+    if (result != THINGINO_SUCCESS) {
+        printf("Failed to initialize USB: %s\n", thingino_error_to_string(result));
         return EXIT_DEVICE_ERROR;
     }
 
     int exit_code = 0;
 
+    /* List devices and exit */
     if (options.list_devices) {
-        cloner_device_list_t list = {0};
-        cerr = cloner_discover_devices(&list);
-        if (cerr != CLONER_OK) {
-            exit_code = EXIT_DEVICE_ERROR;
-        } else {
-            printf("Found %d device(s):\n", list.count);
-            printf("Index | Bus | Addr | Vendor  | Product | Stage    | Variant\n");
-            printf("------|-----|------|---------|---------|----------|--------\n");
-            for (int i = 0; i < list.count; i++) {
-                const char *stage = list.devices[i].stage == CLONER_STAGE_FIRMWARE ? "firmware" : "bootrom";
-                printf("  %3d | %3d | %4d | 0x%04X  | 0x%04X  | %-8s | %s\n", i, list.devices[i].bus,
-                       list.devices[i].address, list.devices[i].vendor_id, list.devices[i].product_id, stage,
-                       cloner_variant_to_string(list.devices[i].variant));
-            }
-            cloner_free_device_list(&list);
-        }
-    } else if (options.bootstrap && !options.write_firmware && !options.read_firmware) {
-        /* Bootstrap only — uses cloner_op_bootstrap which auto-detects SoC */
-        usb_manager_t manager;
-        result = usb_manager_init(&manager);
-        if (result != THINGINO_SUCCESS) {
-            exit_code = EXIT_DEVICE_ERROR;
-            goto cleanup;
-        }
+        result = list_devices(&manager);
+        usb_manager_cleanup(&manager);
+        return result != THINGINO_SUCCESS ? EXIT_DEVICE_ERROR : 0;
+    }
+
+    /* Bootstrap (required for all device operations from bootrom) */
+    if (options.bootstrap) {
         result =
             cloner_op_bootstrap(&manager, options.device_index, options.force_cpu, options.verbose, options.skip_ddr,
                                 options.config_file, options.spl_file, options.uboot_file, options.firmware_dir);
-        usb_manager_cleanup(&manager);
         if (result != THINGINO_SUCCESS) {
-            exit_code = EXIT_DEVICE_ERROR;
+            LOG_ERROR("Bootstrap failed: %s\n", thingino_error_to_string(result));
+            usb_manager_cleanup(&manager);
+            return EXIT_DEVICE_ERROR;
         }
-    } else if (options.write_firmware) {
-        /* Write with optional bootstrap. cloner_op_write_firmware handles
-         * bootstrap internally when do_bootstrap=false (device in bootrom). */
-        usb_manager_t manager;
-        result = usb_manager_init(&manager);
-        if (result != THINGINO_SUCCESS) {
-            exit_code = EXIT_DEVICE_ERROR;
-            goto cleanup;
-        }
-        if (options.bootstrap)
-            fprintf(stderr, "Bootstrap + write mode\n");
-        result = cloner_op_write_firmware(&manager, options.device_index, options.input_file, options.force_cpu,
-                                          options.flash_chip, options.force_erase, options.reboot_after, false,
-                                          options.verbose, options.skip_ddr, options.config_file, options.spl_file,
-                                          options.uboot_file, options.firmware_dir, options.chunk_size);
-        usb_manager_cleanup(&manager);
-        if (result != THINGINO_SUCCESS)
-            exit_code = EXIT_TRANSFER_ERROR;
-    } else if (options.read_firmware) {
-        /* Read with optional bootstrap. cloner_op_read_firmware detects
-         * bootrom stage and bootstraps internally if needed. */
-        usb_manager_t manager;
-        result = usb_manager_init(&manager);
-        if (result != THINGINO_SUCCESS) {
-            exit_code = EXIT_DEVICE_ERROR;
-            goto cleanup;
-        }
-        if (options.bootstrap)
-            fprintf(stderr, "Bootstrap + read mode\n");
-        result = cloner_op_read_firmware(&manager, options.device_index, options.output_file, options.force_cpu,
-                                         options.flash_chip);
-        usb_manager_cleanup(&manager);
-        if (result != THINGINO_SUCCESS)
-            exit_code = EXIT_TRANSFER_ERROR;
-    } else {
-        printf("No action specified. Use -h for help.\n");
-        exit_code = 1;
     }
 
-cleanup:
-    cloner_cleanup();
+    /* Write firmware */
+    if (options.write_firmware && options.input_file) {
+        result = cloner_op_write_firmware(
+            &manager, options.device_index, options.input_file, options.force_cpu, options.flash_chip,
+            options.force_erase, options.reboot_after, options.bootstrap, options.verbose, options.skip_ddr,
+            options.config_file, options.spl_file, options.uboot_file, options.firmware_dir, options.chunk_size);
+        if (result != THINGINO_SUCCESS)
+            exit_code = EXIT_TRANSFER_ERROR;
+    }
+
+    /* Read firmware */
+    if (options.read_firmware && options.output_file) {
+        result = cloner_op_read_firmware(&manager, options.device_index, options.output_file, options.force_cpu,
+                                         options.flash_chip);
+        if (result != THINGINO_SUCCESS)
+            exit_code = EXIT_TRANSFER_ERROR;
+    }
+
+    usb_manager_cleanup(&manager);
     return exit_code;
 }
