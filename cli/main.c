@@ -252,6 +252,8 @@ thingino_error_t list_devices(usb_manager_t *manager) {
  * cloner_op_read_firmware(), cloner_op_write_firmware(). */
 
 int main(int argc, char *argv[]) {
+    fprintf(stderr, "thingino-cloner %s (%s)\n", VERSION, GIT_HASH);
+
     cli_options_t options;
     thingino_error_t result = parse_arguments(argc, argv, &options);
     if (result != THINGINO_SUCCESS) {

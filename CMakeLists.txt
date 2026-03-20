@@ -1,8 +1,21 @@
 cmake_minimum_required(VERSION 3.10)
-project(thingino-cloner VERSION 1.0.0 LANGUAGES C)
+project(thingino-cloner VERSION 0.5.5 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# Get git commit hash
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT GIT_COMMIT_HASH)
+    set(GIT_COMMIT_HASH "unknown")
+endif()
+add_definitions(-DVERSION="${PROJECT_VERSION}" -DGIT_HASH="${GIT_COMMIT_HASH}")
 
 # Find libusb
 find_package(PkgConfig QUIET)
