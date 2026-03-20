@@ -90,6 +90,7 @@ jobs:
         run: |
           mkdir -p dist/thingino-cloner-windows-x64
           cp build-win64/cli/thingino-cloner.exe dist/thingino-cloner-windows-x64/
+          cp build-win64/cloner-remote/cloner-remote.exe dist/thingino-cloner-windows-x64/
           cp build-win64/cli/libusb-1.0.dll dist/thingino-cloner-windows-x64/
           cp -r firmwares dist/thingino-cloner-windows-x64/
           cd dist && zip -r thingino-cloner-windows-x64.zip thingino-cloner-windows-x64

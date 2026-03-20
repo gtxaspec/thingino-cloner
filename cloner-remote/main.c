@@ -12,13 +12,42 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <zlib.h>
 #include <string.h>
 #include <signal.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#ifndef _SSIZE_T_DEFINED
+typedef int ssize_t;
+#endif
+typedef int socklen_t;
+#define MSG_NOSIGNAL 0
+#define CLOSE_SOCKET closesocket
+#define SHUT_RDWR SD_BOTH
+static const char *inet_ntoa_w(struct in_addr in) { return inet_ntoa(in); }
+#else
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#define CLOSE_SOCKET close
+#endif
+
+/* Simple CRC32 (avoids zlib dependency on Windows) */
+static uint32_t remote_crc32(const uint8_t *data, size_t len) {
+    uint32_t crc = 0xFFFFFFFF;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int j = 0; j < 8; j++)
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+    }
+    return ~crc;
+}
+
+#ifndef _WIN32
+#include <zlib.h>
+#endif
 
 static volatile int g_running = 1;
 static volatile int g_cancel = 0;
@@ -36,7 +65,7 @@ static void signal_handler(int sig) {
     /* Close server socket to unblock accept() */
     if (g_server_fd >= 0) {
         shutdown(g_server_fd, SHUT_RDWR);
-        close(g_server_fd);
+        CLOSE_SOCKET(g_server_fd);
         g_server_fd = -1;
     }
 }
@@ -48,7 +77,7 @@ static void signal_handler(int sig) {
 static int net_send_all(int fd, const void *buf, size_t len) {
     const uint8_t *p = buf;
     while (len > 0) {
-        ssize_t n = send(fd, p, len, MSG_NOSIGNAL);
+        ssize_t n = send(fd, (const char *)p, (int)len, MSG_NOSIGNAL);
         if (n <= 0)
             return -1;
         p += n;
@@ -60,7 +89,7 @@ static int net_send_all(int fd, const void *buf, size_t len) {
 static int net_recv_all(int fd, void *buf, size_t len) {
     uint8_t *p = buf;
     while (len > 0) {
-        ssize_t n = recv(fd, p, len, 0);
+        ssize_t n = recv(fd, (char *)p, (int)len, 0);
         if (n <= 0)
             return -1;
         p += n;
@@ -253,7 +282,7 @@ static int handle_write(int client_fd, const uint8_t *payload, uint32_t len, con
     uint32_t fw_crc_expected = read_be32(p);
 
     /* Verify CRC32 */
-    uint32_t fw_crc = crc32(0L, fw_data, fw_len);
+    uint32_t fw_crc = remote_crc32(fw_data, fw_len);
     if (fw_crc != fw_crc_expected)
         return send_error(client_fd, "firmware CRC32 mismatch");
 
@@ -262,29 +291,31 @@ static int handle_write(int client_fd, const uint8_t *payload, uint32_t len, con
     printf("Write request: device=%d, cpu=%s, firmware=%u bytes (CRC OK)\n", device_index, variant_str, fw_len);
 
     /* Write firmware to temp file */
-    char tmpfile[] = "/tmp/cloner-fw-XXXXXX";
+    char tmpfile[256];
+#ifdef _WIN32
+    snprintf(tmpfile, sizeof(tmpfile), "%s\\cloner-fw-tmp.bin", getenv("TEMP") ? getenv("TEMP") : ".");
+#else
+    snprintf(tmpfile, sizeof(tmpfile), "/tmp/cloner-fw-XXXXXX");
     int tmpfd = mkstemp(tmpfile);
     if (tmpfd < 0)
         return send_error(client_fd, "failed to create temp file");
-    {
-        const uint8_t *wp = fw_data;
-        uint32_t remaining = fw_len;
-        while (remaining > 0) {
-            ssize_t nw = write(tmpfd, wp, remaining);
-            if (nw <= 0) {
-                close(tmpfd);
-                unlink(tmpfile);
-                return send_error(client_fd, "failed to write temp file");
-            }
-            wp += nw;
-            remaining -= nw;
-        }
-    }
     close(tmpfd);
+#endif
+    {
+        FILE *tmpf = fopen(tmpfile, "wb");
+        if (!tmpf)
+            return send_error(client_fd, "failed to create temp file");
+        if (fwrite(fw_data, 1, fw_len, tmpf) != fw_len) {
+            fclose(tmpf);
+            remove(tmpfile);
+            return send_error(client_fd, "failed to write temp file");
+        }
+        fclose(tmpf);
+    }
 
     usb_manager_t manager = {0};
     if (usb_manager_init(&manager) != THINGINO_SUCCESS) {
-        unlink(tmpfile);
+        remove(tmpfile);
         return send_error(client_fd, "USB init failed");
     }
 
@@ -294,7 +325,7 @@ static int handle_write(int client_fd, const uint8_t *payload, uint32_t len, con
                                  g_debug_enabled, false, NULL, NULL, NULL, firmware_dir, 0);
     send_progress(client_fd, 100, "Write complete");
 
-    unlink(tmpfile);
+    remove(tmpfile);
     usb_manager_cleanup(&manager);
 
     g_state = "idle";
@@ -333,15 +364,22 @@ static int handle_read(int client_fd, const uint8_t *payload, uint32_t len) {
     printf("Read request: device=%d, cpu=%s\n", device_index, force_cpu ? force_cpu : "(auto)");
 
     /* Read into a temp file, then send contents back */
-    char tmpfile[] = "/tmp/cloner-read-XXXXXX";
-    int tmpfd = mkstemp(tmpfile);
-    if (tmpfd < 0)
-        return send_error(client_fd, "failed to create temp file");
-    close(tmpfd);
+    char tmpfile[256];
+#ifdef _WIN32
+    snprintf(tmpfile, sizeof(tmpfile), "%s\\cloner-read-tmp.bin", getenv("TEMP") ? getenv("TEMP") : ".");
+#else
+    {
+        snprintf(tmpfile, sizeof(tmpfile), "/tmp/cloner-read-XXXXXX");
+        int tmpfd = mkstemp(tmpfile);
+        if (tmpfd < 0)
+            return send_error(client_fd, "failed to create temp file");
+        close(tmpfd);
+    }
+#endif
 
     usb_manager_t manager = {0};
     if (usb_manager_init(&manager) != THINGINO_SUCCESS) {
-        unlink(tmpfile);
+        remove(tmpfile);
         return send_error(client_fd, "USB init failed");
     }
 
@@ -352,7 +390,7 @@ static int handle_read(int client_fd, const uint8_t *payload, uint32_t len) {
     usb_manager_cleanup(&manager);
 
     if (result != THINGINO_SUCCESS) {
-        unlink(tmpfile);
+        remove(tmpfile);
         g_state = "idle";
         char msg[128];
         snprintf(msg, sizeof(msg), "read failed: %s", thingino_error_to_string(result));
@@ -362,7 +400,7 @@ static int handle_read(int client_fd, const uint8_t *payload, uint32_t len) {
     /* Read the temp file into memory */
     FILE *f = fopen(tmpfile, "rb");
     if (!f) {
-        unlink(tmpfile);
+        remove(tmpfile);
         g_state = "idle";
         return send_error(client_fd, "failed to open read output");
     }
@@ -372,7 +410,7 @@ static int handle_read(int client_fd, const uint8_t *payload, uint32_t len) {
 
     if (file_size <= 0) {
         fclose(f);
-        unlink(tmpfile);
+        remove(tmpfile);
         g_state = "idle";
         return send_error(client_fd, "read returned empty data");
     }
@@ -380,19 +418,19 @@ static int handle_read(int client_fd, const uint8_t *payload, uint32_t len) {
     uint8_t *read_data = malloc(file_size);
     if (!read_data) {
         fclose(f);
-        unlink(tmpfile);
+        remove(tmpfile);
         g_state = "idle";
         return send_error(client_fd, "out of memory");
     }
     fread(read_data, 1, file_size, f);
     fclose(f);
-    unlink(tmpfile);
+    remove(tmpfile);
 
     printf("Read complete: %ld bytes\n", file_size);
     send_progress(client_fd, 100, "Read complete");
 
     /* Send data + CRC32 back */
-    uint32_t data_crc = crc32(0L, read_data, file_size);
+    uint32_t data_crc = remote_crc32(read_data, file_size);
     size_t resp_len = file_size + 4;
     uint8_t *resp = malloc(resp_len);
     if (!resp) {
@@ -568,9 +606,19 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifdef _WIN32
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+        fprintf(stderr, "WSAStartup failed\n");
+        return 1;
+    }
+#endif
+
     signal(SIGINT, signal_handler);
+#ifndef _WIN32
     signal(SIGTERM, signal_handler);
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     /* Create listening socket */
     int server_fd;
@@ -581,7 +629,7 @@ int main(int argc, char **argv) {
     }
 
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
 
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
@@ -591,13 +639,13 @@ int main(int argc, char **argv) {
 
     if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("bind");
-        close(server_fd);
+        CLOSE_SOCKET(server_fd);
         return 1;
     }
 
     if (listen(server_fd, 1) < 0) {
         perror("listen");
-        close(server_fd);
+        CLOSE_SOCKET(server_fd);
         return 1;
     }
 
@@ -617,11 +665,11 @@ int main(int argc, char **argv) {
         printf("Connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
         handle_client(client_fd, firmware_dir);
-        close(client_fd);
+        CLOSE_SOCKET(client_fd);
     }
 
     if (g_server_fd >= 0)
-        close(g_server_fd);
+        CLOSE_SOCKET(g_server_fd);
     printf("\ncloner-remote stopped\n");
     return 0;
 }
