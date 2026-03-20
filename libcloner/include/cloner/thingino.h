@@ -362,6 +362,7 @@ const char *device_stage_to_string(device_stage_t stage);
 const char *thingino_error_to_string(thingino_error_t error);
 
 // High-level device operations (libcloner/src/operations.c)
+const char *cloner_get_last_detected_variant(void);
 thingino_error_t cloner_op_bootstrap(usb_manager_t *manager, int index, const char *force_cpu, bool verbose,
                                      bool skip_ddr, const char *config_file, const char *spl_file,
                                      const char *uboot_file, const char *firmware_dir);

@@ -13,9 +13,17 @@
 #include "spi_nor_db.h"
 #include <unistd.h>
 
+/* Last detected variant from bootstrap auto-detect, so callers can
+ * pass it to subsequent read/write operations. */
+static const char *g_last_detected_variant = NULL;
+
+const char *cloner_get_last_detected_variant(void) {
+    return g_last_detected_variant;
+}
+
 /* ========================================================================== */
 /* Bootstrap a device by index                                                */
-/* ========================================================================== */
+/* ==========================================================================*/
 
 thingino_error_t cloner_op_bootstrap(usb_manager_t *manager, int index, const char *force_cpu, bool verbose,
                                      bool skip_ddr, const char *config_file, const char *spl_file,
@@ -84,6 +92,9 @@ thingino_error_t cloner_op_bootstrap(usb_manager_t *manager, int index, const ch
         /* No USB reset needed — protocol_detect_soc clears the one-shot
          * flag via host-side bulk OUT after reading results. */
     }
+
+    /* Save detected variant for subsequent operations */
+    g_last_detected_variant = processor_variant_to_string(device->info.variant);
 
     /* Create bootstrap config */
     bootstrap_config_t config = {

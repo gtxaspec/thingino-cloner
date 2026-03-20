@@ -328,6 +328,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Bootstrap (required for all device operations from bootrom) */
+    const char *detected_cpu = options.force_cpu;
     if (options.bootstrap) {
         result =
             cloner_op_bootstrap(&manager, options.device_index, options.force_cpu, options.verbose, options.skip_ddr,
@@ -337,21 +338,27 @@ int main(int argc, char *argv[]) {
             usb_manager_cleanup(&manager);
             return EXIT_DEVICE_ERROR;
         }
+        /* If no --cpu was given, bootstrap auto-detected the variant.
+         * Retrieve it so we can pass it to write/read operations, which
+         * otherwise can't auto-detect (device is now in firmware stage). */
+        if (!detected_cpu) {
+            detected_cpu = cloner_get_last_detected_variant();
+        }
     }
 
     /* Write firmware */
     if (options.write_firmware && options.input_file) {
         result = cloner_op_write_firmware(
-            &manager, options.device_index, options.input_file, options.force_cpu, options.flash_chip,
-            options.force_erase, options.reboot_after, options.bootstrap, options.verbose, options.skip_ddr,
-            options.config_file, options.spl_file, options.uboot_file, options.firmware_dir, options.chunk_size);
+            &manager, options.device_index, options.input_file, detected_cpu, options.flash_chip, options.force_erase,
+            options.reboot_after, options.bootstrap, options.verbose, options.skip_ddr, options.config_file,
+            options.spl_file, options.uboot_file, options.firmware_dir, options.chunk_size);
         if (result != THINGINO_SUCCESS)
             exit_code = EXIT_TRANSFER_ERROR;
     }
 
     /* Read firmware */
     if (options.read_firmware && options.output_file) {
-        result = cloner_op_read_firmware(&manager, options.device_index, options.output_file, options.force_cpu,
+        result = cloner_op_read_firmware(&manager, options.device_index, options.output_file, detected_cpu,
                                          options.flash_chip);
         if (result != THINGINO_SUCCESS)
             exit_code = EXIT_TRANSFER_ERROR;
