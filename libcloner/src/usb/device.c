@@ -253,11 +253,24 @@ thingino_error_t usb_device_reopen(usb_device_t *device) {
             continue;
         }
 
+        uint8_t bus = libusb_get_bus_number(list[i]);
+        uint8_t addr = libusb_get_device_address(list[i]);
+
         if (desc.idVendor == device->info.vendor && desc.idProduct == device->info.product) {
-            found = list[i];
-            new_bus = libusb_get_bus_number(found);
-            new_addr = libusb_get_device_address(found);
-            break;
+            /* Prefer exact bus+address match to avoid opening the wrong device
+             * when multiple devices share the same VID:PID */
+            if (bus == device->info.bus && addr == device->info.address) {
+                found = list[i];
+                new_bus = bus;
+                new_addr = addr;
+                break;
+            }
+            /* Fall back to first VID:PID match if address changed (re-enumeration) */
+            if (!found) {
+                found = list[i];
+                new_bus = bus;
+                new_addr = addr;
+            }
         }
     }
 

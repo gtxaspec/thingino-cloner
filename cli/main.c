@@ -236,14 +236,29 @@ thingino_error_t list_devices(usb_manager_t *manager) {
         return THINGINO_SUCCESS;
     }
 
+    /* Auto-detect SoC for bootrom devices */
+    for (int i = 0; i < device_count; i++) {
+        if (devices[i].stage == STAGE_BOOTROM) {
+            usb_device_t *dev = NULL;
+            if (usb_manager_open_device(manager, &devices[i], &dev) == THINGINO_SUCCESS) {
+                processor_variant_t detected = VARIANT_T31X;
+                if (protocol_detect_soc(dev, &detected) == THINGINO_SUCCESS) {
+                    devices[i].variant = detected;
+                }
+                usb_device_close(dev);
+            }
+        }
+    }
+
     printf("Found %d device(s):\n", device_count);
-    printf("Index | Bus | Addr | Vendor  | Product | Stage\n");
-    printf("------|-----|------|---------|---------|----------\n");
+    printf("Index | Bus | Addr | Vendor  | Product | Stage    | SoC\n");
+    printf("------|-----|------|---------|---------|----------|--------\n");
 
     for (int i = 0; i < device_count; i++) {
         device_info_t *dev = &devices[i];
-        printf("  %3d | %3d | %4d | 0x%04X  | 0x%04X  | %s\n", i, dev->bus, dev->address, dev->vendor, dev->product,
-               device_stage_to_string(dev->stage));
+        const char *soc = dev->stage == STAGE_BOOTROM ? processor_variant_to_string(dev->variant) : "-";
+        printf("  %3d | %3d | %4d | 0x%04X  | 0x%04X  | %-8s | %s\n", i, dev->bus, dev->address, dev->vendor,
+               dev->product, device_stage_to_string(dev->stage), soc);
     }
 
     printf("\n");
