@@ -140,12 +140,20 @@ thingino_error_t cloner_op_read_firmware(usb_manager_t *manager, int index, cons
         return result;
     }
 
-    /* Apply CPU override */
+    /* Apply CPU override, or auto-detect if in bootrom */
     if (force_cpu) {
         processor_variant_t forced = string_to_processor_variant(force_cpu);
         LOG_INFO("Forcing CPU variant to: %s (was: %s)\n", force_cpu,
                  processor_variant_to_string(device->info.variant));
         device->info.variant = forced;
+    } else if (devices[index].stage == STAGE_BOOTROM) {
+        LOG_INFO("Auto-detecting SoC...\n");
+        processor_variant_t detected = VARIANT_T31X;
+        if (protocol_detect_soc(device, &detected) == THINGINO_SUCCESS) {
+            device->info.variant = detected;
+        } else {
+            LOG_WARN("SoC auto-detect failed, using CPU magic fallback\n");
+        }
     }
 
     /* Bootstrap if device is in bootrom stage */
@@ -417,12 +425,9 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
     LOG_INFO("  Stage: %s\n", device_stage_to_string(devices[device_index].stage));
     LOG_INFO("\n");
 
-    /* Apply CPU variant override if specified (before bootstrap) */
+    /* Apply CPU variant override, or auto-detect if in bootrom */
     if (force_cpu) {
         processor_variant_t forced_variant = string_to_processor_variant(force_cpu);
-        /* Validate: round-trip the parsed variant back to string and compare.
-         * string_to_processor_variant returns T31X for unknown strings, so
-         * we check the round-trip matches to distinguish real T31X from unknown. */
         const char *round_trip = processor_variant_to_string(forced_variant);
         if (strcasecmp(round_trip, force_cpu) == 0) {
             LOG_INFO("Forcing CPU variant to: %s (was: %s)\n", force_cpu,
@@ -430,6 +435,14 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
             device->info.variant = forced_variant;
         } else {
             LOG_WARN("Unknown CPU variant '%s', ignoring\n", force_cpu);
+        }
+    } else if (devices[device_index].stage == STAGE_BOOTROM) {
+        LOG_INFO("Auto-detecting SoC...\n");
+        processor_variant_t detected = VARIANT_T31X;
+        if (protocol_detect_soc(device, &detected) == THINGINO_SUCCESS) {
+            device->info.variant = detected;
+        } else {
+            LOG_WARN("SoC auto-detect failed, using CPU magic fallback\n");
         }
     }
 
