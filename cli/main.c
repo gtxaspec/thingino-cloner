@@ -60,9 +60,11 @@ void print_usage(const char *program_name) {
     printf("      --spl <file>          Custom SPL file\n");
     printf("      --uboot <file>        Custom U-Boot file\n");
     printf("      --firmware-dir <dir>  Firmware directory (default: ./firmwares)\n");
+#ifndef _WIN32
     printf("      --host <addr>         Connect to remote cloner-remote daemon\n");
     printf("      --port <port>         Remote daemon port (default: 5050)\n");
     printf("      --token <secret>      Auth token for remote daemon\n");
+#endif
     printf("      --skip-ddr            Skip DDR configuration during bootstrap\n");
     printf("      --flash-chip <name>   Override flash chip (auto-detect from JEDEC ID)\n");
     printf("      --list-cpus           List supported CPU targets for --cpu\n");
