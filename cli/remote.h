@@ -25,6 +25,10 @@ static inline void remote_disconnect(void) {}
 static inline int remote_list_devices(void) {
     return -1;
 }
+static inline const char *remote_detect_variant(int i) {
+    (void)i;
+    return NULL;
+}
 static inline int remote_bootstrap(int i, const char *c, const char *f) {
     (void)i;
     (void)c;
