@@ -132,7 +132,7 @@ For headless setups (e.g., an Orange Pi connected to devices via USB):
 1. Run `cloner-remote` on the USB host machine
 2. Use `--host <addr>` from anywhere on the network
 
-Protocol uses TCP port 5050. Not available on Windows.
+Protocol uses TCP port 5050. The daemon requires Linux; the client (`--host`) works on all platforms.
 
 ## Hardware Databases
 

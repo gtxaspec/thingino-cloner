@@ -3,11 +3,7 @@
  *
  * All firmware data is sent over the wire. The daemon never loads
  * firmware from its own filesystem.
- *
- * Not available on Windows (requires POSIX sockets + zlib).
  */
-
-#ifndef _WIN32
 
 #include "remote.h"
 #include "cloner/protocol.h"
@@ -18,11 +14,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#ifndef _SSIZE_T_DEFINED
+typedef int ssize_t;
+#endif
+#define MSG_NOSIGNAL 0
+#define CLOSE_SOCKET closesocket
+static int wsa_initialized = 0;
+#else
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <zlib.h>
+#define CLOSE_SOCKET close
+#endif
+
+/* Simple CRC32 (avoids zlib dependency on Windows) */
+static uint32_t remote_crc32(const uint8_t *data, size_t len) {
+    uint32_t crc = 0xFFFFFFFF;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int j = 0; j < 8; j++)
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+    }
+    return ~crc;
+}
 
 static int remote_fd = -1;
 
@@ -42,7 +61,7 @@ static const char *variant_to_fw_dir(const char *variant) {
 static int net_send_all(int fd, const void *buf, size_t len) {
     const uint8_t *p = buf;
     while (len > 0) {
-        ssize_t n = send(fd, p, len, MSG_NOSIGNAL);
+        ssize_t n = send(fd, (const char *)p, (int)len, MSG_NOSIGNAL);
         if (n <= 0)
             return -1;
         p += n;
@@ -54,7 +73,7 @@ static int net_send_all(int fd, const void *buf, size_t len) {
 static int net_recv_all(int fd, void *buf, size_t len) {
     uint8_t *p = buf;
     while (len > 0) {
-        ssize_t n = recv(fd, p, len, 0);
+        ssize_t n = recv(fd, (char *)p, (int)len, 0);
         if (n <= 0)
             return -1;
         p += n;
@@ -64,6 +83,16 @@ static int net_recv_all(int fd, void *buf, size_t len) {
 }
 
 int remote_connect(const char *host, int port, const char *token) {
+#ifdef _WIN32
+    if (!wsa_initialized) {
+        WSADATA wsa;
+        if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+            fprintf(stderr, "WSAStartup failed\n");
+            return -1;
+        }
+        wsa_initialized = 1;
+    }
+#endif
     struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
     struct addrinfo *result;
     char port_str[16];
@@ -82,7 +111,7 @@ int remote_connect(const char *host, int port, const char *token) {
 
     if (connect(remote_fd, result->ai_addr, result->ai_addrlen) < 0) {
         fprintf(stderr, "Failed to connect to %s:%d\n", host, port);
-        close(remote_fd);
+        CLOSE_SOCKET(remote_fd);
         remote_fd = -1;
         freeaddrinfo(result);
         return -1;
@@ -100,7 +129,7 @@ int remote_connect(const char *host, int port, const char *token) {
         auth_hdr[5] = token_len;
         if (net_send_all(remote_fd, auth_hdr, 6) < 0 || net_send_all(remote_fd, token, token_len) < 0) {
             fprintf(stderr, "Failed to send auth token\n");
-            close(remote_fd);
+            CLOSE_SOCKET(remote_fd);
             remote_fd = -1;
             return -1;
         }
@@ -116,7 +145,7 @@ int remote_connect(const char *host, int port, const char *token) {
             } else {
                 fprintf(stderr, "Auth failed\n");
             }
-            close(remote_fd);
+            CLOSE_SOCKET(remote_fd);
             remote_fd = -1;
             return -1;
         }
@@ -133,7 +162,7 @@ int remote_connect(const char *host, int port, const char *token) {
 
 void remote_disconnect(void) {
     if (remote_fd >= 0) {
-        close(remote_fd);
+        CLOSE_SOCKET(remote_fd);
         remote_fd = -1;
     }
 }
@@ -383,9 +412,9 @@ int remote_bootstrap(int device_index, const char *cpu_variant, const char *firm
     printf("  U-Boot: %zu bytes\n", uboot_len);
 
     /* Compute CRC32 for each binary */
-    uint32_t ddr_crc = crc32(0L, ddr, ddr_len);
-    uint32_t spl_crc = crc32(0L, spl, spl_len);
-    uint32_t uboot_crc = crc32(0L, uboot, uboot_len);
+    uint32_t ddr_crc = remote_crc32(ddr, ddr_len);
+    uint32_t spl_crc = remote_crc32(spl, spl_len);
+    uint32_t uboot_crc = remote_crc32(uboot, uboot_len);
 
     /* Build payload */
     size_t variant_len = strlen(cpu_variant);
@@ -477,7 +506,7 @@ int remote_write_firmware(int device_index, const char *cpu_variant, const char 
     printf("Sending firmware to remote daemon:\n");
     printf("  File: %s (%zu bytes)\n", firmware_file, fw_len);
 
-    uint32_t fw_crc = crc32(0L, fw_data, fw_len);
+    uint32_t fw_crc = remote_crc32(fw_data, fw_len);
 
     size_t variant_len = strlen(cpu_variant);
     size_t payload_len = 2 + variant_len + 4 + fw_len + 4;
@@ -572,7 +601,7 @@ int remote_read_firmware(int device_index, const char *output_file) {
     uint32_t data_len = resp_len - 4;
     uint32_t expected_crc = ((uint32_t)resp[data_len] << 24) | ((uint32_t)resp[data_len + 1] << 16) |
                             ((uint32_t)resp[data_len + 2] << 8) | resp[data_len + 3];
-    uint32_t actual_crc = crc32(0L, resp, data_len);
+    uint32_t actual_crc = remote_crc32(resp, data_len);
 
     if (actual_crc != expected_crc) {
         fprintf(stderr, "Read data CRC32 mismatch\n");
@@ -594,5 +623,3 @@ int remote_read_firmware(int device_index, const char *output_file) {
     free(resp);
     return 0;
 }
-
-#endif /* !_WIN32 */

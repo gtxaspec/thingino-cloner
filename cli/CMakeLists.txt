@@ -8,7 +8,7 @@ target_include_directories(thingino-cloner PRIVATE
     ${CMAKE_SOURCE_DIR}/libcloner/src/flash
 )
 if (WIN32)
-    target_link_libraries(thingino-cloner cloner)
+    target_link_libraries(thingino-cloner cloner ws2_32)
     # Copy libusb-1.0.dll next to the .exe so it can find it at runtime
     if (_VENDORED_LIBUSB_ROOT)
         file(GLOB _libusb_dlls "${_VENDORED_LIBUSB_ROOT}/bin/*.dll")
