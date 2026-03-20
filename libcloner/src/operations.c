@@ -86,11 +86,10 @@ thingino_error_t cloner_op_bootstrap(usb_manager_t *manager, int index, const ch
         processor_variant_t detected = VARIANT_T31X;
         if (protocol_detect_soc(device, &detected) == THINGINO_SUCCESS) {
             device->info.variant = detected;
+            LOG_INFO("  Detected: %s\n", processor_variant_to_string(detected));
         } else {
             LOG_WARN("SoC auto-detect failed, using CPU magic fallback\n");
         }
-        /* No USB reset needed — protocol_detect_soc clears the one-shot
-         * flag via host-side bulk OUT after reading results. */
     }
 
     /* Save detected variant for subsequent operations */
