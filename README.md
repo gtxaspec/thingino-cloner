@@ -1,6 +1,6 @@
 # thingino-cloner
 
-USB flashing tool for Ingenic SoC devices. Bootstraps a device over USB (DDR init, SPL, U-Boot), then reads or writes SPI NOR flash. Automatically detects the SoC variant — no manual configuration needed.
+USB flashing tool for Ingenic SoC devices. Bootstraps a device over USB (DDR init, SPL, U-Boot), then reads or writes SPI NOR flash. Automatically detects the SoC variant, no manual configuration needed.
 
 ## Build
 
@@ -114,11 +114,12 @@ Detected sub-variants include: T31X, T31N, T31A, T31AL, T31ZX, T32LQ, T40N, T40N
 
 ## Windows Setup
 
-1. Connect the device in USB boot mode
-2. Install the WinUSB driver using [Zadig](https://zadig.akeo.ie/) — select the "Ingenic USB Boot Device" and install WinUSB
-3. Run `thingino-cloner.exe -i 0 -b`
+1. If the Ingenic vendor USB driver is installed, remove it first via Device Manager
+2. Connect the device in USB boot mode
+3. Install the WinUSB driver using [Zadig](https://zadig.akeo.ie/). Select the "Ingenic USB Boot Device" and install WinUSB
+4. Run `thingino-cloner.exe -i 0 -b`
 
-Note: The Ingenic vendor driver (libusb0.sys) is not compatible. WinUSB is required.
+**Important:** The Ingenic vendor driver (libusb0.sys) is not compatible and must be removed before installing WinUSB via Zadig.
 
 ## Flash Chip Detection
 
@@ -135,7 +136,7 @@ Protocol uses TCP port 5050. Not available on Windows.
 
 ## Hardware Databases
 
-All chip data is compiled in — no config files at runtime:
+All chip data is compiled in,no config files at runtime:
 
 - **DDR chips:** 36 entries (DDR2, DDR3, LPDDR2)
 - **SPI NOR flash:** 49 entries
