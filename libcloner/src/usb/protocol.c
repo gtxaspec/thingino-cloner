@@ -818,7 +818,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
     (void)flag_addr;
     uint16_t subtype1 = (subsoctype1_raw >> 16) & 0xFFFF;
     uint16_t subtype2 = (subsoctype2_raw >> 16) & 0xFFFF;
-    LOG_INFO("  SoC ID: 0x%08X (CPU: 0x%04X, sub1: 0x%04X, sub2: 0x%04X)\n", soc_id_raw, cpu_id, subtype1, subtype2);
+    DEBUG_PRINT("SoC ID: 0x%08X (CPU: 0x%04X, sub1: 0x%04X, sub2: 0x%04X)\n", soc_id_raw, cpu_id, subtype1, subtype2);
 
     /* Match CPU family */
     switch (cpu_id) {
@@ -919,7 +919,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         chip_name = "A1";
         break;
     }
-    LOG_INFO("  Detected: %s (%s)\n", chip_name, processor_variant_to_string(*variant));
+    DEBUG_PRINT("Detected: %s (%s)\n", chip_name, processor_variant_to_string(*variant));
     return THINGINO_SUCCESS;
 
 fail:
