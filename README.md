@@ -114,9 +114,11 @@ Detected sub-variants include: T31X, T31N, T31A, T31AL, T31ZX, T32LQ, T40N, T40N
 
 ## Windows Setup
 
-1. Install the USB driver: right-click `driver/usb_cloner_device.inf` → Install
-2. Connect the device in USB boot mode
+1. Connect the device in USB boot mode
+2. Install the WinUSB driver using [Zadig](https://zadig.akeo.ie/) — select the "Ingenic USB Boot Device" and install WinUSB
 3. Run `thingino-cloner.exe -i 0 -b`
+
+Note: The Ingenic vendor driver (libusb0.sys) is not compatible. WinUSB is required.
 
 ## Flash Chip Detection
 
