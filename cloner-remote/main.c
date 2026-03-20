@@ -24,8 +24,10 @@ typedef int ssize_t;
 typedef int socklen_t;
 #define MSG_NOSIGNAL 0
 #define CLOSE_SOCKET closesocket
-#define SHUT_RDWR SD_BOTH
-static const char *inet_ntoa_w(struct in_addr in) { return inet_ntoa(in); }
+#define SHUT_RDWR    SD_BOTH
+static const char *inet_ntoa_w(struct in_addr in) {
+    return inet_ntoa(in);
+}
 #else
 #include <unistd.h>
 #include <sys/socket.h>
@@ -177,8 +179,7 @@ static int handle_discover(int client_fd) {
                 processor_variant_t detected = VARIANT_T31X;
                 if (protocol_detect_soc(dev, &detected) == THINGINO_SUCCESS) {
                     entries[i].variant = (uint8_t)detected;
-                    DEBUG_PRINT("Discover: device %d auto-detected as %s\n", i,
-                                processor_variant_to_string(detected));
+                    DEBUG_PRINT("Discover: device %d auto-detected as %s\n", i, processor_variant_to_string(detected));
                 }
                 usb_device_close(dev);
             }
