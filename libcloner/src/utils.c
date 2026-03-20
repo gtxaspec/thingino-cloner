@@ -173,11 +173,12 @@ processor_variant_t detect_variant_from_magic(const char *magic) {
 
     DEBUG_PRINT("detect_variant_from_magic: input='%s' (length=%zu)\n", magic, magic ? strlen(magic) : 0);
 
-    // Special-case XBurst2/X2580 boards: CPU magic "X2580" indicates an
-    // XBurst2 platform that is T41N-based (DDR3 W631GU6NG @ 400 MHz).
+    // X2580 is reported by multiple SoCs in firmware stage (T32, T41, etc.)
+    // and cannot be used to determine the variant. Return T31X as fallback
+    // and rely on auto-detect or --cpu for correct identification.
     if (strstr(magic, "X2580") || strstr(magic, "x2580")) {
-        DEBUG_PRINT("detect_variant_from_magic: matched X2580 -> T41 (T41N board)\n");
-        return VARIANT_T41;
+        DEBUG_PRINT("detect_variant_from_magic: X2580 is ambiguous (T32/T41), using fallback\n");
+        return VARIANT_T31X;
     }
 
     // Check for X-series processors first (more specific)

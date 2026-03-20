@@ -601,6 +601,9 @@ static thingino_error_t send_fw_write2_bulk(usb_device_t *device, const uint8_t 
     memset(cmd, 0, sizeof(cmd));
     write_u32(cmd, size);
 
+    /* Ensure interface is claimed — required on Windows (WinUSB) for bulk transfers */
+    libusb_claim_interface(device->handle, 0);
+
     int result = libusb_control_transfer(device->handle, 0x40, VR_FW_WRITE2, 0, 0, cmd, 40, 5000);
     if (result < 0) {
         LOG_ERROR("FW_WRITE2 control failed: %s\n", libusb_error_name(result));
