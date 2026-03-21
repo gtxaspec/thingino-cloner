@@ -311,14 +311,17 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
      * in FUN_exec's stack frame (ra at sp+0x1C, frame size 0x20) to jump
      * directly to the event loop continuation, skipping the flag-set.
      *
-     * Per-SoC continuation addresses (from bootrom analysis):
+     * Per-SoC continuation addresses:
+     *   T20 (0x2000): 0xBFC02D20
+     *   T21 (0x0021): 0xBFC02BEC  — clears ErrCtl bit 29, ra at sp+0x24
+     *   T30 (0x0030): 0xBFC02D0C
      *   T31 (0x0031): 0xBFC02DD4  — also clears ErrCtl bit 29
      *   T32 (0x0032): 0xBFC03ADC  — clears ErrCtl bit 29, unwinds frame
      *   T40 (0x0040, sub2=0x1111/0x8888): 0xBFC036F0
      *   T41 (0x0040, sub2=other):         0xBFC03ACC
      *   A1  (0x0001): 0xBFC0387C
      *
-     * One-shot flag addresses: T31=0x5C T41=0x60 T32=0x68 T40=0x78 A1=0x7C
+     * One-shot flag addresses: T20=0x5C T21=0x5C T30=0x5C T31=0x5C T41=0x60 T32=0x68 T40=0x78 A1=0x7C
      *
      * Result layout at 0x80001100 (16 bytes):
      *   [0]  soc_id       from 0xB300002C
@@ -327,53 +330,52 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
      *   [12] 0xDEADBEEF   execution marker
      */
     static const uint8_t mips_prog[] = {
-        /* === Read SoC ID registers === */
-        /* lui  t2, 0x8000       ; t2 = 0x80000000 (kseg0 base) */
+        /* lui  t2, 0x8000 */
         0x00,
         0x80,
         0x0A,
         0x3C,
-        /* lui  t0, 0xB300       ; t0 = 0xB3000000 (HARB0 kseg1) */
+        /* lui  t0, 0xB300 */
         0x00,
         0xB3,
         0x08,
         0x3C,
-        /* lw   t1, 0x002C(t0)  ; t1 = *(0xB300002C) = soc_id */
+        /* lw   t1, 0x002C(t0) = soc_id */
         0x2C,
         0x00,
         0x09,
         0x8D,
-        /* sw   t1, 0x1100(t2)  ; result[0] = soc_id */
+        /* sw   t1, 0x1100(t2) */
         0x00,
         0x11,
         0x49,
         0xAD,
-        /* move t3, t1          ; t3 = soc_id (save for CPU check) */
+        /* move t3, t1 */
         0x25,
         0x58,
         0x20,
         0x01,
-        /* lui  t0, 0xB354       ; t0 = 0xB3540000 (EFUSE kseg1) */
+        /* lui  t0, 0xB354 */
         0x54,
         0xB3,
         0x08,
         0x3C,
-        /* lw   t1, 0x0238(t0)  ; t1 = subsoctype1 */
+        /* lw   t1, 0x0238(t0) = sub1 */
         0x38,
         0x02,
         0x09,
         0x8D,
-        /* sw   t1, 0x1104(t2)  ; result[4] = subsoctype1 */
+        /* sw   t1, 0x1104(t2) */
         0x04,
         0x11,
         0x49,
         0xAD,
-        /* lw   t4, 0x0250(t0)  ; t4 = subsoctype2 (kept in t4 for T40/T41) */
+        /* lw   t4, 0x0250(t0) = sub2 */
         0x50,
         0x02,
         0x0C,
         0x8D,
-        /* sw   t4, 0x1108(t2)  ; result[8] = subsoctype2 */
+        /* sw   t4, 0x1108(t2) */
         0x08,
         0x11,
         0x4C,
@@ -383,35 +385,33 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0xDE,
         0x09,
         0x3C,
-        /* ori  t1, t1, 0xBEEF  ; t1 = 0xDEADBEEF */
+        /* ori  t1, t1, 0xBEEF */
         0xEF,
         0xBE,
         0x29,
         0x35,
-        /* sw   t1, 0x110C(t2)  ; result[12] = marker */
+        /* sw   t1, 0x110C(t2) = marker */
         0x0C,
         0x11,
         0x49,
         0xAD,
-
-        /* === Extract cpu_id and branch per-SoC === */
-        /* srl  t0, t3, 12      ; t0 = soc_id >> 12 */
+        /* srl  t0, t3, 12 */
         0x02,
         0x43,
         0x0B,
         0x00,
-        /* andi t0, t0, 0xFFFF  ; t0 = cpu_id */
+        /* andi t0, t0, 0xFFFF */
         0xFF,
         0xFF,
         0x08,
         0x31,
-        /* li   t1, 0x0032      ; T32 cpu_id */
+        /* li   t1, 0x0032 */
         0x32,
         0x00,
         0x09,
         0x24,
-        /* beq  t0, t1, bypass_t32 (+12) */
-        0x0C,
+        /* beq  t0, t1, bypass_t32 */
+        0x15,
         0x00,
         0x09,
         0x11,
@@ -420,13 +420,13 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-        /* li   t1, 0x0031      ; T31 cpu_id */
+        /* li   t1, 0x0031 */
         0x31,
         0x00,
         0x09,
         0x24,
-        /* beq  t0, t1, bypass_t31 (+20) */
-        0x14,
+        /* beq  t0, t1, bypass_t31 */
+        0x1D,
         0x00,
         0x09,
         0x11,
@@ -435,13 +435,13 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-        /* li   t1, 0x0040      ; T40/T41 cpu_id */
+        /* li   t1, 0x0040 */
         0x40,
         0x00,
         0x09,
         0x24,
-        /* beq  t0, t1, bypass_t40_t41 (+27) */
-        0x1B,
+        /* beq  t0, t1, bypass_t40_t41 */
+        0x2E,
         0x00,
         0x09,
         0x11,
@@ -450,13 +450,13 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-        /* li   t1, 0x0001      ; A1 cpu_id */
+        /* li   t1, 0x0001 */
         0x01,
         0x00,
         0x09,
         0x24,
-        /* beq  t0, t1, bypass_a1 (+41) */
-        0x29,
+        /* beq  t0, t1, bypass_a1 */
+        0x3C,
         0x00,
         0x09,
         0x11,
@@ -465,7 +465,52 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-        /* jr   ra              ; unknown SoC, return normally */
+        /* li   t1, 0x0021 */
+        0x21,
+        0x00,
+        0x09,
+        0x24,
+        /* beq  t0, t1, bypass_t21 */
+        0x1E,
+        0x00,
+        0x09,
+        0x11,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* li   t1, 0x0030 */
+        0x30,
+        0x00,
+        0x09,
+        0x24,
+        /* beq  t0, t1, bypass_t30 */
+        0x40,
+        0x00,
+        0x09,
+        0x11,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* ori  t1, zero, 0x2000 ; T20 */
+        0x00,
+        0x20,
+        0x09,
+        0x34,
+        /* beq  t0, t1, bypass_t20 */
+        0x38,
+        0x00,
+        0x09,
+        0x11,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* jr   ra */
         0x08,
         0x00,
         0xE0,
@@ -475,72 +520,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-
-        /* === bypass_t32: clear ErrCtl bit 29 + unwind frame + direct jump ===
-         * T32's FUN_bfc00604 sets ErrCtl bit 29 (SPRAM mode). Must clear it
-         * so the next STAGE1 (SPL) can flush D-cache to physical TCSM. Also
-         * unwind FUN_bfc00604's stack frame and jump directly to 0xBFC03ADC
-         * (event loop continuation past the one-shot flag set). */
-        /* mfc0 t0, ErrCtl(CP0 $26) */
-        0x00,
-        0xD0,
-        0x08,
-        0x40,
-        /* lui  t1, 0xDFFF */
-        0xFF,
-        0xDF,
-        0x09,
-        0x3C,
-        /* ori  t1, t1, 0xFFFF   ; t1 = 0xDFFFFFFF */
-        0xFF,
-        0xFF,
-        0x29,
-        0x35,
-        /* and  t0, t0, t1       ; clear bit 29 */
-        0x24,
-        0x40,
-        0x09,
-        0x01,
-        /* mtc0 t0, ErrCtl */
-        0x00,
-        0xD0,
-        0x88,
-        0x40,
-        /* lw   s0, 0x18(sp)    ; restore s0 */
-        0x18,
-        0x00,
-        0xB0,
-        0x8F,
-        /* addiu sp, sp, 0x20   ; deallocate FUN_bfc00604's frame */
-        0x20,
-        0x00,
-        0xBD,
-        0x27,
-        /* lui  t0, 0xBFC0 */
-        0xC0,
-        0xBF,
-        0x08,
-        0x3C,
-        /* ori  t0, t0, 0x3ADC   ; t0 = 0xBFC03ADC */
-        0xDC,
-        0x3A,
-        0x08,
-        0x35,
-        /* jr   t0               ; jump to event loop */
-        0x08,
-        0x00,
-        0x00,
-        0x01,
-        /* nop */
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-
-        /* === bypass_t31: clear ErrCtl bit 29 + overwrite saved ra ===
-         * T31's FUN_bfc004a0 also sets ErrCtl bit 29. Overwrite saved ra
-         * in stack frame to skip flag-set, return via epilogue. */
-        /* mfc0 t0, ErrCtl(CP0 $26) */
+        /* mfc0 t0, ErrCtl */
         0x00,
         0xD0,
         0x08,
@@ -555,7 +535,62 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0xFF,
         0x29,
         0x35,
-        /* and  t0, t0, t1       ; clear bit 29 */
+        /* and  t0, t0, t1 */
+        0x24,
+        0x40,
+        0x09,
+        0x01,
+        /* mtc0 t0, ErrCtl */
+        0x00,
+        0xD0,
+        0x88,
+        0x40,
+        /* lw   s0, 0x18(sp) */
+        0x18,
+        0x00,
+        0xB0,
+        0x8F,
+        /* addiu sp, sp, 0x20 */
+        0x20,
+        0x00,
+        0xBD,
+        0x27,
+        /* lui  t0, 0xBFC0 */
+        0xC0,
+        0xBF,
+        0x08,
+        0x3C,
+        /* ori  t0, t0, 0x3ADC ; T32 */
+        0xDC,
+        0x3A,
+        0x08,
+        0x35,
+        /* jr   t0 */
+        0x08,
+        0x00,
+        0x00,
+        0x01,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* mfc0 t0, ErrCtl */
+        0x00,
+        0xD0,
+        0x08,
+        0x40,
+        /* lui  t1, 0xDFFF */
+        0xFF,
+        0xDF,
+        0x09,
+        0x3C,
+        /* ori  t1, t1, 0xFFFF */
+        0xFF,
+        0xFF,
+        0x29,
+        0x35,
+        /* and  t0, t0, t1 */
         0x24,
         0x40,
         0x09,
@@ -570,17 +605,17 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0xBF,
         0x08,
         0x3C,
-        /* ori  t0, t0, 0x2DD4   ; T31 continuation addr */
+        /* ori  t0, t0, 0x2DD4 ; T31 */
         0xD4,
         0x2D,
         0x08,
         0x35,
-        /* sw   t0, 0x1C(sp)    ; overwrite saved ra */
+        /* sw   t0, 0x1C(sp) */
         0x1C,
         0x00,
         0xA8,
         0xAF,
-        /* jr   ra              ; return → epilogue uses modified ra */
+        /* jr   ra */
         0x08,
         0x00,
         0xE0,
@@ -590,21 +625,67 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-
-        /* === bypass_t40_t41: distinguish T40 vs T41 by sub2, overwrite ra ===
-         * T40/T41 share cpu_id 0x0040. T40 variants have sub2>>16 == 0x8888
-         * or 0x1111 (DDR2). Everything else is T41 (DDR3). */
-        /* srl  t0, t4, 16      ; t0 = sub2 >> 16 */
+        /* mfc0 t0, ErrCtl */
+        0x00,
+        0xD0,
+        0x08,
+        0x40,
+        /* lui  t1, 0xDFFF */
+        0xFF,
+        0xDF,
+        0x09,
+        0x3C,
+        /* ori  t1, t1, 0xFFFF */
+        0xFF,
+        0xFF,
+        0x29,
+        0x35,
+        /* and  t0, t0, t1 */
+        0x24,
+        0x40,
+        0x09,
+        0x01,
+        /* mtc0 t0, ErrCtl */
+        0x00,
+        0xD0,
+        0x88,
+        0x40,
+        /* lui  t0, 0xBFC0 */
+        0xC0,
+        0xBF,
+        0x08,
+        0x3C,
+        /* ori  t0, t0, 0x2BEC ; T21 */
+        0xEC,
+        0x2B,
+        0x08,
+        0x35,
+        /* sw   t0, 0x24(sp) */
+        0x24,
+        0x00,
+        0xA8,
+        0xAF,
+        /* jr   ra */
+        0x08,
+        0x00,
+        0xE0,
+        0x03,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* srl  t0, t4, 16 */
         0x02,
         0x44,
         0x0C,
         0x00,
-        /* ori  t1, zero, 0x8888 ; T40NN marker */
+        /* ori  t1, zero, 0x8888 */
         0x88,
         0x88,
         0x09,
         0x34,
-        /* beq  t0, t1, bypass_t40 (+9) */
+        /* beq  t0, t1, bypass_t40 */
         0x09,
         0x00,
         0x09,
@@ -614,12 +695,12 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-        /* ori  t1, zero, 0x1111 ; T40N marker */
+        /* ori  t1, zero, 0x1111 */
         0x11,
         0x11,
         0x09,
         0x34,
-        /* beq  t0, t1, bypass_t40 (+6) */
+        /* beq  t0, t1, bypass_t40 */
         0x06,
         0x00,
         0x09,
@@ -629,13 +710,12 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-        /* T41: overwrite ra → 0xBFC03ACC */
         /* lui  t0, 0xBFC0 */
         0xC0,
         0xBF,
         0x08,
         0x3C,
-        /* ori  t0, t0, 0x3ACC */
+        /* ori  t0, t0, 0x3ACC ; T41 */
         0xCC,
         0x3A,
         0x08,
@@ -655,14 +735,12 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-
-        /* === bypass_t40: overwrite ra → 0xBFC036F0 === */
         /* lui  t0, 0xBFC0 */
         0xC0,
         0xBF,
         0x08,
         0x3C,
-        /* ori  t0, t0, 0x36F0 */
+        /* ori  t0, t0, 0x36F0 ; T40 */
         0xF0,
         0x36,
         0x08,
@@ -682,14 +760,12 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
-
-        /* === bypass_a1: overwrite ra → 0xBFC0387C === */
         /* lui  t0, 0xBFC0 */
         0xC0,
         0xBF,
         0x08,
         0x3C,
-        /* ori  t0, t0, 0x387C */
+        /* ori  t0, t0, 0x387C ; A1 */
         0x7C,
         0x38,
         0x08,
@@ -709,6 +785,57 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x00,
         0x00,
         0x00,
+        /* lui  t0, 0xBFC0 */
+        0xC0,
+        0xBF,
+        0x08,
+        0x3C,
+        /* ori  t0, t0, 0x2D20 ; T20 */
+        0x20,
+        0x2D,
+        0x08,
+        0x35,
+        /* sw   t0, 0x1C(sp) */
+        0x1C,
+        0x00,
+        0xA8,
+        0xAF,
+        /* jr   ra */
+        0x08,
+        0x00,
+        0xE0,
+        0x03,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* lui  t0, 0xBFC0 */
+        0xC0,
+        0xBF,
+        0x08,
+        0x3C,
+        /* ori  t0, t0, 0x2D0C ; T30 */
+        0x0C,
+        0x2D,
+        0x08,
+        0x35,
+        /* sw   t0, 0x1C(sp) */
+        0x1C,
+        0x00,
+        0xA8,
+        0xAF,
+        /* jr   ra */
+        0x08,
+        0x00,
+        0xE0,
+        0x03,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+
     };
 
     const uint32_t prog_addr = 0x80001000;
@@ -743,7 +870,14 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
      * the saved ra in the execution function's stack frame to jump past the
      * flag-set instruction, allowing STAGE1 to be used again for SPL.
      * On T31/T32, the execution function also sets ErrCtl bit 29 (SPRAM mode),
-     * which our program clears before returning. */
+     * which our program clears before returning.
+     *
+     * Set d2i_len before STAGE1 — T20/T21 bootroms use this value to determine
+     * how much code to flush from D-cache before execution. Without it, the
+     * program may not be visible to I-cache and won't execute. */
+    result = protocol_set_data_length(device, 0x7000);
+    if (result != THINGINO_SUCCESS)
+        goto fail;
     result = protocol_prog_stage1(device, prog_addr);
     if (result != THINGINO_SUCCESS) {
         DEBUG_PRINT("Failed to execute detect program\n");
