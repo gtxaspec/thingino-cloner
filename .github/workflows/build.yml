@@ -108,11 +108,11 @@ jobs:
       - name: Install dependencies
         run: brew install pkg-config
 
-      - name: Build libusb universal
+      - name: Build libusb universal (static)
         run: |
           curl -sL https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2 | tar xj
           cd libusb-1.0.27
-          ./configure --disable-dependency-tracking CFLAGS="-arch arm64 -arch x86_64" LDFLAGS="-arch arm64 -arch x86_64" --prefix=$PWD/../libusb-universal
+          ./configure --disable-dependency-tracking --enable-static --disable-shared CFLAGS="-arch arm64 -arch x86_64" LDFLAGS="-arch arm64 -arch x86_64" --prefix=$PWD/../libusb-universal
           make -j$(sysctl -n hw.ncpu) && make install
 
       - name: Build universal binary
