@@ -423,7 +423,13 @@ static int handle_read(int client_fd, const uint8_t *payload, uint32_t len) {
         g_state = "idle";
         return send_error(client_fd, "out of memory");
     }
-    fread(read_data, 1, file_size, f);
+    if (fread(read_data, 1, file_size, f) != (size_t)file_size) {
+        free(read_data);
+        fclose(f);
+        remove(tmpfile);
+        g_state = "idle";
+        return send_error(client_fd, "failed to read firmware data");
+    }
     fclose(f);
     remove(tmpfile);
 
