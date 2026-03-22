@@ -48,6 +48,7 @@
  * Source: Derived from analysis of reference DDR binaries
  */
 typedef struct {
+    const char *name;               // Platform name (e.g., "t40", "t40xp", "t41")
     uint32_t crystal_freq;          // Crystal oscillator frequency in Hz (typically 24 MHz)
     uint32_t cpu_freq;              // CPU frequency in Hz (e.g., 576 MHz for T31)
     uint32_t ddr_freq;              // DDR memory frequency in Hz (e.g., 400 MHz)

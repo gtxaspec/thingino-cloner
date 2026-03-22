@@ -9,6 +9,7 @@
  */
 
 #include "ddr_binary_builder.h"
+#include "ddr_config_database.h"
 #include <string.h>
 
 extern void write_u32_le(uint8_t *buf, uint32_t value);
@@ -36,14 +37,20 @@ void ddr_fidb_fill_xb1(uint8_t *d, const platform_config_t *platform) {
     write_u32_le(d + 0x18, 0x00000001);
     write_u32_le(d + 0x20, platform->mem_size); /* mem_size or UART GPIO mask */
     if (platform->is_xburst2) {
-        /* T40/T41: different flags, SFC config, and extra fields.
-         * Vendor verified: +0x24=2, +0x2c=1, +0x30=sfc_gpio,
-         * +0x38=1 (flag), +0x3c=0xe0700000 (extra GPIO/config). */
-        write_u32_le(d + 0x24, 0x00000002);
+        /* T40/T41: verified against vendor pcap for T40NN and T40XP.
+         * +0x20=0x01800000, +0x24=1, +0x2c=1, +0x30=sfc_gpio.
+         * +0x38 is DDR3 flag: 0 for DDR2, 1 for DDR3. */
+        write_u32_le(d + 0x20, 0x01800000);
+        write_u32_le(d + 0x24, 0x00000001);
         write_u32_le(d + 0x2c, 0x00000001);
         write_u32_le(d + 0x30, 0x1f800000); /* SFC GPIO: sfc,pa_4bit */
-        write_u32_le(d + 0x38, 0x00000001);
-        write_u32_le(d + 0x3c, 0xe0700000); /* vendor GPIO/config field */
+        /* DDR3 flag: determine from DDR chip config */
+        {
+            const char *pname = platform->name;
+            const ddr_chip_config_t *chip = ddr_chip_config_get_default(pname);
+            uint32_t is_ddr3 = (chip && (chip->ddr_type == 0 || chip->ddr_type == 3)) ? 1 : 0;
+            write_u32_le(d + 0x38, is_ddr3);
+        }
     } else if (platform->ddr_freq == 200000000) {
         /* T32/PRJ007: different config field (0x00 not 0x11).
          * Verified from t32_vendor_write.pcap DDR binary. */

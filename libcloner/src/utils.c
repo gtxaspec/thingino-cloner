@@ -68,6 +68,8 @@ const char *processor_variant_to_string(processor_variant_t variant) {
         return "x2600";
     case VARIANT_T31AL:
         return "t31al";
+    case VARIANT_T40XP:
+        return "t40xp";
     default:
         return "unknown";
     }
@@ -109,6 +111,8 @@ processor_variant_t string_to_processor_variant(const char *str) {
         return VARIANT_T31A;
     if (strcmp(lower, "t40") == 0)
         return VARIANT_T40;
+    if (strcmp(lower, "t40xp") == 0)
+        return VARIANT_T40XP;
     if (strcmp(lower, "t41") == 0)
         return VARIANT_T41;
     if (strcmp(lower, "t32") == 0)

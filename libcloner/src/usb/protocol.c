@@ -317,7 +317,8 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
      *   T30 (0x0030): 0xBFC02D0C
      *   T31 (0x0031): 0xBFC02DD4  — also clears ErrCtl bit 29
      *   T32 (0x0032): 0xBFC03ADC  — clears ErrCtl bit 29, unwinds frame
-     *   T40 (0x0040, sub2=0x1111/0x8888): 0xBFC036F0
+     *   T40NN (0x0040, sub2=0x1111/0x8888): 0xBFC036F0
+     *   T40XP (0x0040, sub2=0x7777): 0xBFC03604
      *   T41 (0x0040, sub2=other):         0xBFC03ACC
      *   A1  (0x0001): 0xBFC0387C
      *
@@ -456,7 +457,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x09,
         0x24,
         /* beq  t0, t1, bypass_a1 */
-        0x3C,
+        0x44,
         0x00,
         0x09,
         0x11,
@@ -486,7 +487,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x09,
         0x24,
         /* beq  t0, t1, bypass_t30 */
-        0x40,
+        0x48,
         0x00,
         0x09,
         0x11,
@@ -501,7 +502,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x09,
         0x34,
         /* beq  t0, t1, bypass_t20 */
-        0x38,
+        0x40,
         0x00,
         0x09,
         0x11,
@@ -660,7 +661,7 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x2B,
         0x08,
         0x35,
-        /* sw   t0, 0x24(sp) */
+        /* sw   t0, 0x24(sp) ; ra at sp+0x24 */
         0x24,
         0x00,
         0xA8,
@@ -685,8 +686,8 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x88,
         0x09,
         0x34,
-        /* beq  t0, t1, bypass_t40 */
-        0x09,
+        /* beq  t0, t1, bypass_t40nn */
+        0x0C,
         0x00,
         0x09,
         0x11,
@@ -700,8 +701,23 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0x11,
         0x09,
         0x34,
-        /* beq  t0, t1, bypass_t40 */
-        0x06,
+        /* beq  t0, t1, bypass_t40nn */
+        0x09,
+        0x00,
+        0x09,
+        0x11,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* ori  t1, zero, 0x7777 */
+        0x77,
+        0x77,
+        0x09,
+        0x34,
+        /* beq  t0, t1, bypass_t40xp */
+        0x0B,
         0x00,
         0x09,
         0x11,
@@ -740,8 +756,33 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
         0xBF,
         0x08,
         0x3C,
-        /* ori  t0, t0, 0x36F0 ; T40 */
+        /* ori  t0, t0, 0x36F0 ; T40NN */
         0xF0,
+        0x36,
+        0x08,
+        0x35,
+        /* sw   t0, 0x1C(sp) */
+        0x1C,
+        0x00,
+        0xA8,
+        0xAF,
+        /* jr   ra */
+        0x08,
+        0x00,
+        0xE0,
+        0x03,
+        /* nop */
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        /* lui  t0, 0xBFC0 */
+        0xC0,
+        0xBF,
+        0x08,
+        0x3C,
+        /* ori  t0, t0, 0x3604 ; T40XP */
+        0x04,
         0x36,
         0x08,
         0x35,
@@ -997,8 +1038,10 @@ thingino_error_t protocol_detect_soc(usb_device_t *device, processor_variant_t *
          *   T41*  (sub2=other):  DDR3 */
         if (subtype2 == 0x1111 || subtype2 == 0x8888)
             *variant = VARIANT_T40; /* DDR2 */
+        else if (subtype2 == 0x7777)
+            *variant = VARIANT_T40XP; /* DDR3, dw32=1, different bootrom */
         else
-            *variant = VARIANT_T41; /* DDR3 (T40XP, T41N, T41NQ, etc.) */
+            *variant = VARIANT_T41; /* DDR3 (T41N, T41NQ, etc.) */
         break;
     case 0x0001:
         *variant = VARIANT_A1;

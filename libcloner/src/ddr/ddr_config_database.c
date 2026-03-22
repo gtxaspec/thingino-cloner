@@ -379,6 +379,19 @@ static const processor_config_t processor_configs[] = {
         .ddr_cs1 = 0, /* vendor: bank8=0, FIDB=184, xb1-style */
     },
     {
+        /* T40XP: DDR3 with dw32=1, bank8=1, different from T41 (dw32=0) */
+        .name = "t40xp",        .crystal_freq = 24000000,
+        .cpu_freq = 800000000,  .ddr_freq = 400000000,
+        .uart_baud = 115200,    .mem_size = 0x01800000, /* FIDB +0x20: UART1 PB GPIO mask (vendor) */
+        .d2i_len = 0x7000,      .ginfo_addr = 0x80001000,
+        .spl_addr = 0x80001800, .uboot_addr = 0x80100000,
+        .uart_idx = 1,          .ginfo_ddr_params_size = 0,
+        .use_fidb_header = 1,   .use_inno_phy_rdd = 0,
+        .is_xburst2 = 1,        .ddr_bank8 = 1,
+        .ddr_dw32 = 1,          .ddr_cs0 = 1,
+        .ddr_cs1 = 0,
+    },
+    {
         .name = "t41n",
         .crystal_freq = 24000000,
         .cpu_freq = 800000000,
@@ -2047,6 +2060,7 @@ static const struct {
     {"t31al", "M14D1G1664A_DDR2"},                                    /* T31AL: DDR2, distinct from T31A */
     {"t31nl", "M14D5121632A_DDR2"},                                   /* vendor: M14D5121632A_DDR2 */
     {"t40", "M14D5121632A_DDR2"},                                     /* vendor t40n: DDR2 (t40a uses DDR3) */
+    {"t40xp", "DDR3_W631GU6NG"},                                      /* vendor: DDR3, dw32=1, bank8=1 */
     {"t41", "DDR3_W631GU6NG"},                                        /* vendor: DDR3_W631GU6NG */
     {"t41n", "DDR3_W631GU6NG"},
 };

@@ -127,6 +127,7 @@ typedef enum processor_variant {
     VARIANT_X2100,
     VARIANT_X2600,
     VARIANT_T31AL, // T31AL (DDR2, distinct from T31A which is DDR3)
+    VARIANT_T40XP, // T40XP (DDR3, dw32=1, different bootrom from T40NN)
 } processor_variant_t;
 #define PROCESSOR_VARIANT_DEFINED
 

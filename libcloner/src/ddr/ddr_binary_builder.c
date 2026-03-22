@@ -26,6 +26,7 @@ int ddr_get_platform_config(const char *platform_name, platform_config_t *config
             return -1;
     }
 
+    config->name = proc_cfg->name;
     config->crystal_freq = proc_cfg->crystal_freq;
     config->cpu_freq = proc_cfg->cpu_freq;
     config->ddr_freq = proc_cfg->ddr_freq;
@@ -87,8 +88,14 @@ int ddr_get_platform_config_by_variant(int variant, platform_config_t *config) {
     case VARIANT_T31A:
         platform_name = "t31a";
         break;
+    case VARIANT_T31AL:
+        platform_name = "t31al";
+        break;
     case VARIANT_T40:
         platform_name = "t40";
+        break;
+    case VARIANT_T40XP:
+        platform_name = "t40xp";
         break;
     case VARIANT_T41:
         platform_name = "t41";
