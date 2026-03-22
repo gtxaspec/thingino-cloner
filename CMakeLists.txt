@@ -112,6 +112,14 @@ endforeach()
 list(REMOVE_DUPLICATES _LIBUSB_INCLUDE_DIRS_NORMALIZED)
 set(LIBUSB_INCLUDE_DIRS ${_LIBUSB_INCLUDE_DIRS_NORMALIZED})
 
+# On macOS, static libusb needs IOKit and CoreFoundation frameworks
+if (APPLE)
+    find_library(IOKIT_FRAMEWORK IOKit)
+    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+    find_library(SECURITY_FRAMEWORK Security)
+    list(APPEND LIBUSB_LIBRARIES ${IOKIT_FRAMEWORK} ${COREFOUNDATION_FRAMEWORK} ${SECURITY_FRAMEWORK})
+endif()
+
 # Global settings
 include_directories(${LIBUSB_INCLUDE_DIRS})
 add_compile_options(-Wall -Wextra)
