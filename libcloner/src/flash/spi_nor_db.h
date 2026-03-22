@@ -22,7 +22,7 @@
  *   { cmd, bit, read_en, read_cmd, write_en, reserved }
  * Values of -1 indicate "not supported".
  */
-typedef struct spi_nor_chip {
+struct spi_nor_chip {
     const char *name;
     uint32_t jedec_id;
     uint32_t size;       /* total size in bytes */
@@ -48,7 +48,10 @@ typedef struct spi_nor_chip {
     int32_t sr1[6];
     int32_t sr2[6];
     int32_t sr3[6];
-} spi_nor_chip_t;
+};
+#ifndef SPI_NOR_CHIP_T_DEFINED
+typedef struct spi_nor_chip spi_nor_chip_t;
+#endif
 
 /**
  * Find SPI NOR chip by JEDEC ID

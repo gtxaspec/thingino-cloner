@@ -6,6 +6,11 @@
  */
 
 #include "remote.h"
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include "cloner/protocol.h"
 #include "thingino.h"
 #include "ddr_binary_builder.h"
@@ -16,8 +21,6 @@
 #include <string.h>
 
 #ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #ifndef _SSIZE_T_DEFINED
 typedef int ssize_t;
 #endif

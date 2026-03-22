@@ -6,6 +6,11 @@
  * commands to libcloner.
  */
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include "thingino.h"
 #include "cloner/protocol.h"
 #include "platform.h"
@@ -16,8 +21,6 @@
 #include <signal.h>
 
 #ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #ifndef _SSIZE_T_DEFINED
 typedef int ssize_t;
 #endif
@@ -25,9 +28,6 @@ typedef int socklen_t;
 #define MSG_NOSIGNAL 0
 #define CLOSE_SOCKET closesocket
 #define SHUT_RDWR    SD_BOTH
-static const char *inet_ntoa_w(struct in_addr in) {
-    return inet_ntoa(in);
-}
 #else
 #include <unistd.h>
 #include <sys/socket.h>

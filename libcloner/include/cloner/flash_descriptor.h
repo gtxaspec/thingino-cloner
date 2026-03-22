@@ -4,7 +4,8 @@
 #include <stdint.h>
 
 /* Forward declaration - full definition in src/flash/spi_nor_db.h */
-#ifndef SPI_NOR_DB_H
+#ifndef SPI_NOR_CHIP_T_DEFINED
+#define SPI_NOR_CHIP_T_DEFINED
 typedef struct spi_nor_chip spi_nor_chip_t;
 #endif
 
