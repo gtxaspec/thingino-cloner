@@ -31,6 +31,8 @@ static const char *variant_to_firmware_dir(processor_variant_t variant) {
     case VARIANT_T31ZX:
     case VARIANT_T31AL:
         return "t31x";
+    case VARIANT_T23DL:
+        return "t23";
     case VARIANT_T40XP:
         return "t40";
     default:

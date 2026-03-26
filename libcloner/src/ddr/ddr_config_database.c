@@ -79,10 +79,31 @@ static const processor_config_t processor_configs[] = {
     {
         .name = "t23",
         .crystal_freq = 24000000,
-        .cpu_freq = 1200000000,
-        .ddr_freq = 300000000,
+        .cpu_freq = 576000000,
+        .ddr_freq = 400000000,
         .uart_baud = 115200,
-        .mem_size = 16 * 1024 * 1024,
+        .mem_size = 8 * 1024 * 1024,
+        .d2i_len = 0x7000,
+        .ginfo_addr = 0x80001000,
+        .spl_addr = 0x80001800,
+        .uboot_addr = 0x80100000,
+        .uart_idx = 1,
+        .ginfo_ddr_params_size = 0,
+        .use_fidb_header = 1,
+        .use_inno_phy_rdd = 1,
+        .is_xburst2 = 0,
+        .ddr_bank8 = 1,
+        .ddr_dw32 = 0,
+        .ddr_cs0 = 1,
+        .ddr_cs1 = 0,
+    },
+    {
+        .name = "t23dl",
+        .crystal_freq = 24000000,
+        .cpu_freq = 576000000,
+        .ddr_freq = 400000000,
+        .uart_baud = 115200,
+        .mem_size = 8 * 1024 * 1024,
         .d2i_len = 0x7000,
         .ginfo_addr = 0x80001000,
         .spl_addr = 0x80001800,
@@ -2050,6 +2071,7 @@ static const struct {
     {"a1nt", "DDR3_W632GU6NG"},      {"t10", "M14D5121632A_DDR2"},
     {"t20", "M14D5121632A_DDR2"},    {"t21", "M14D5121632A_DDR2"}, /* vendor: M14D5121632A_DDR2 */
     {"t23", "M14D5121632A_DDR2"},                                  /* vendor: M14D5121632A_DDR2 */
+    {"t23dl", "M14D2561616A_DDR2"},                                /* T23DL: 32MB DDR2 */
     {"t32", "A3L28E40BGD-LVDDR2"},                                 /* vendor: PRJ007 SFC NOR */
     {"t30", "M14D1G1664A_DDR2"},                                   /* vendor: t30x/t30nl use DDR2 */
     {"t30a", "DDR3_M15T1G1664A_2C"},                               /* vendor: DDR3_M15T1G1664A_2C */

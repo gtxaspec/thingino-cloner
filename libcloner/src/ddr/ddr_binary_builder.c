@@ -74,6 +74,9 @@ int ddr_get_platform_config_by_variant(int variant, platform_config_t *config) {
     case VARIANT_T23:
         platform_name = "t23";
         break;
+    case VARIANT_T23DL:
+        platform_name = "t23dl";
+        break;
     case VARIANT_T32:
         platform_name = "t32";
         break;

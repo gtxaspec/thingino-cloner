@@ -36,6 +36,8 @@ const char *processor_variant_to_string(processor_variant_t variant) {
         return "t21";
     case VARIANT_T23:
         return "t23";
+    case VARIANT_T23DL:
+        return "t23dl";
     case VARIANT_T30:
         return "t30";
     case VARIANT_T31:
@@ -95,6 +97,8 @@ processor_variant_t string_to_processor_variant(const char *str) {
         return VARIANT_T21;
     if (strcmp(lower, "t23") == 0)
         return VARIANT_T23;
+    if (strcmp(lower, "t23dl") == 0)
+        return VARIANT_T23DL;
     if (strcmp(lower, "t30") == 0)
         return VARIANT_T30;
     if (strcmp(lower, "t31") == 0)

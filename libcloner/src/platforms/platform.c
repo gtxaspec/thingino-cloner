@@ -44,6 +44,7 @@ const platform_profile_t *platform_get_profile(processor_variant_t variant) {
 
     /* T31 family + anything else defaults to T31 profile */
     case VARIANT_T23:
+    case VARIANT_T23DL:
     case VARIANT_T32:
     case VARIANT_T31:
     case VARIANT_T31X:

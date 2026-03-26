@@ -55,6 +55,7 @@ typedef enum {
     CLONER_VARIANT_X2600,
     CLONER_VARIANT_T31AL,
     CLONER_VARIANT_T40XP,
+    CLONER_VARIANT_T23DL,
 } cloner_variant_t;
 
 /* Device info (returned by discovery) */

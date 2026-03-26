@@ -37,7 +37,7 @@ class RemoteClient(private val callback: ClonerBridge.NativeCallback?) {
         val VARIANT_NAMES = listOf(
             "t10", "t20", "t21", "t23", "t30", "t31", "t31x", "t31zx",
             "t31a", "a1", "t40", "t41", "t32", "x1000", "x1600", "x1700",
-            "x2000", "x2100", "x2600", "t31al", "t40xp"
+            "x2000", "x2100", "x2600", "t31al", "t40xp", "t23dl"
         )
     }
 
