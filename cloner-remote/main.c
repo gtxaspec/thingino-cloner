@@ -594,9 +594,36 @@ static void print_usage(const char *name) {
     printf("  -h, --help                Show this help\n");
 }
 
+/* Resolve firmware directory relative to this binary's location */
+static const char *resolve_firmware_dir(const char *argv0) {
+    static char buf[4096];
+#ifdef _WIN32
+    DWORD len = GetModuleFileNameA(NULL, buf, sizeof(buf));
+    if (len > 0 && len < sizeof(buf)) {
+        char *sep = strrchr(buf, '\\');
+        if (sep) {
+            snprintf(sep + 1, sizeof(buf) - (sep + 1 - buf), "firmwares");
+            return buf;
+        }
+    }
+#else
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len > 0) {
+        buf[len] = '\0';
+        char *sep = strrchr(buf, '/');
+        if (sep) {
+            snprintf(sep + 1, sizeof(buf) - (sep + 1 - buf), "firmwares");
+            return buf;
+        }
+    }
+#endif
+    (void)argv0;
+    return "./firmwares";
+}
+
 int main(int argc, char **argv) {
     int port = CLONER_DEFAULT_PORT;
-    const char *firmware_dir = "./firmwares";
+    const char *firmware_dir = resolve_firmware_dir(argv[0]);
 
     for (int i = 1; i < argc; i++) {
         if ((strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--port") == 0) && i + 1 < argc) {
