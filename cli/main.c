@@ -60,7 +60,7 @@ void print_usage(const char *program_name) {
     printf("  -w, --write <file>        Write firmware from file to device\n");
     printf("      --no-erase            Skip flash erase before writing\n");
     printf("      --reboot              Reboot device after flash write completes\n");
-    printf("      --chunk-size <bytes>  Write chunk size (default: 128KB, read: 1MB)\n");
+    printf("      --chunk-size <size>   Write chunk size: 64K, 128K, 256K, 512K, 1M\n");
     printf("      --cpu <variant>       CPU variant (a1, t31, t40, t41, etc.)\n");
     printf("      --config <file>       Custom DDR configuration file\n");
     printf("      --spl <file>          Custom SPL file\n");
@@ -182,12 +182,18 @@ thingino_error_t parse_arguments(int argc, char *argv[], cli_options_t *options)
             options->reboot_after = true;
         } else if (strcmp(argv[i], "--chunk-size") == 0) {
             if (i + 1 >= argc) {
-                printf("Error: %s requires a size in bytes\n", argv[i]);
+                printf("Error: %s requires a size (e.g. 256K, 1M, 131072)\n", argv[i]);
                 return THINGINO_ERROR_INVALID_PARAMETER;
             }
             {
                 char *endptr;
                 unsigned long val = strtoul(argv[++i], &endptr, 10);
+                if (endptr != argv[i] && (*endptr == 'k' || *endptr == 'K'))
+                    { val *= 1024; endptr++; }
+                else if (endptr != argv[i] && (*endptr == 'm' || *endptr == 'M'))
+                    { val *= 1024 * 1024; endptr++; }
+                if (*endptr == 'b' || *endptr == 'B')
+                    endptr++;
                 if (*endptr != '\0' || val == 0 || val > 0xFFFFFFFFUL) {
                     printf("Error: invalid chunk-size value\n");
                     return THINGINO_ERROR_INVALID_PARAMETER;
