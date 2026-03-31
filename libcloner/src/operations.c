@@ -390,7 +390,7 @@ thingino_error_t cloner_op_read_firmware(usb_manager_t *manager, int index, cons
 /* ========================================================================== */
 
 thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_index, const char *firmware_file,
-                                          const char *force_cpu, const char *flash_chip_name, bool force_erase,
+                                          const char *force_cpu, const char *flash_chip_name, bool no_erase,
                                           bool reboot_after, bool do_bootstrap, bool verbose, bool skip_ddr,
                                           const char *config_file, const char *spl_file, const char *uboot_file,
                                           const char *firmware_dir, uint32_t chunk_size) {
@@ -451,6 +451,7 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
         processor_variant_t detected = VARIANT_T31X;
         if (protocol_detect_soc(device, &detected) == THINGINO_SUCCESS) {
             device->info.variant = detected;
+            g_last_detected_variant = processor_variant_to_string(detected);
         } else {
             LOG_WARN("SoC auto-detect failed, using CPU magic fallback\n");
         }
@@ -521,6 +522,18 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
         }
 
         LOG_INFO("Device reopened in firmware stage.\n\n");
+
+        /* Carry forward the variant detected during bootstrap auto-detect.
+         * In firmware stage, T40/T41 both report "X2580" which maps to t31x.
+         * The real variant was determined in bootrom stage via SoC ID registers. */
+        if (!force_cpu && g_last_detected_variant) {
+            processor_variant_t restored = string_to_processor_variant(g_last_detected_variant);
+            if (restored != device->info.variant) {
+                LOG_INFO("Restoring detected variant: %s (was: %s)\n",
+                         g_last_detected_variant, processor_variant_to_string(device->info.variant));
+                device->info.variant = restored;
+            }
+        }
     }
 
     free(devices);
@@ -549,6 +562,8 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
 
         thingino_error_t prep_result = THINGINO_SUCCESS;
 
+        if (no_erase)
+            LOG_INFO("Erase disabled (--no-erase)\n");
         LOG_INFO("Preparing flash descriptor...\n");
 
         extern thingino_error_t protocol_read_flash_id(usb_device_t *, uint32_t *);
@@ -626,20 +641,28 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
                 /* A1: unique 992-byte format with SFC freq field */
                 uint8_t flash_descriptor[FLASH_DESCRIPTOR_SIZE_A1];
                 flash_descriptor_create_a1(flash_chip, flash_descriptor);
+                if (no_erase)
+                    flash_descriptor[12 + 0xD0 + 0x14] = 0x00;
                 prep_result = flash_descriptor_send_sized(device, flash_descriptor, FLASH_DESCRIPTOR_SIZE_A1);
             } else if (fw_profile->skip_set_data_addr) {
                 /* xburst2 (T40/T41): 984-byte descriptor */
                 uint8_t flash_descriptor[FLASH_DESCRIPTOR_SIZE_XB2];
                 flash_descriptor_create_xb2(flash_chip, flash_descriptor);
+                if (no_erase)
+                    flash_descriptor[12 + 0xC8 + 0x14] = 0x00;
                 prep_result = flash_descriptor_send_sized(device, flash_descriptor, FLASH_DESCRIPTOR_SIZE_XB2);
             } else if (device->info.variant == VARIANT_T32) {
                 /* T32: 976-byte descriptor with shifted SFC layout */
                 uint8_t flash_descriptor[FLASH_DESCRIPTOR_SIZE_T32];
                 flash_descriptor_create_t32(flash_chip, flash_descriptor);
+                if (no_erase)
+                    flash_descriptor[0xC8 + 0x14] = 0x00;
                 prep_result = flash_descriptor_send_sized(device, flash_descriptor, FLASH_DESCRIPTOR_SIZE_T32);
             } else {
                 uint8_t flash_descriptor[FLASH_DESCRIPTOR_SIZE];
                 flash_descriptor_create(flash_chip, flash_descriptor);
+                if (no_erase)
+                    flash_descriptor[0xC8 + 0x14] = 0x00;
                 prep_result = flash_descriptor_send(device, flash_descriptor);
             }
             if (prep_result != THINGINO_SUCCESS)
@@ -678,7 +701,7 @@ thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_ind
     LOG_INFO("\n");
 
     result =
-        write_firmware_to_device(device, firmware_file, NULL, force_erase, fw_profile->use_a1_handshake, chunk_size);
+        write_firmware_to_device(device, firmware_file, NULL, no_erase, fw_profile->use_a1_handshake, chunk_size);
     if (result != THINGINO_SUCCESS) {
         LOG_ERROR("Firmware write failed: %s\n", thingino_error_to_string(result));
         usb_device_close(device);

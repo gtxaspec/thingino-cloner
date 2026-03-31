@@ -135,3 +135,22 @@ add_subdirectory(libcloner)
 add_subdirectory(cli)
 add_subdirectory(cloner-remote)
 add_subdirectory(tests)
+
+# Install targets
+# Binaries and firmwares install to the same directory so that the binary
+# can find firmwares/ relative to its own location via /proc/self/exe.
+# Default: /usr/local/lib/thingino-cloner/  (override with -DCLONER_INSTALL_DIR=)
+set(CLONER_INSTALL_DIR "lib/thingino-cloner" CACHE STRING "Install directory for cloner binaries and firmware")
+install(TARGETS thingino-cloner cloner-remote RUNTIME DESTINATION ${CLONER_INSTALL_DIR})
+install(DIRECTORY firmwares/ DESTINATION ${CLONER_INSTALL_DIR}/firmwares)
+
+# Symlinks in bin/ for convenience
+install(CODE "
+    file(MAKE_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin)
+    execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink
+        ../${CLONER_INSTALL_DIR}/thingino-cloner
+        \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/thingino-cloner)
+    execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink
+        ../${CLONER_INSTALL_DIR}/cloner-remote
+        \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/cloner-remote)
+")

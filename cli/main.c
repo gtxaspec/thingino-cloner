@@ -34,7 +34,7 @@ typedef struct {
     char *uboot_file;
     char *output_file;
     char *input_file;
-    bool force_erase;
+    bool no_erase;
     bool reboot_after;
     bool skip_ddr;
     uint32_t chunk_size; // Flash write chunk size (default: 131072)
@@ -58,7 +58,7 @@ void print_usage(const char *program_name) {
     printf("  -b, --bootstrap           Bootstrap device to firmware stage\n");
     printf("  -r, --read <file>         Read firmware from device to file\n");
     printf("  -w, --write <file>        Write firmware from file to device\n");
-    printf("      --erase               Erase flash before writing (when supported)\n");
+    printf("      --no-erase            Skip flash erase before writing\n");
     printf("      --reboot              Reboot device after flash write completes\n");
     printf("      --chunk-size <bytes>  Write chunk size (default: 128KB, read: 1MB)\n");
     printf("      --cpu <variant>       CPU variant (a1, t31, t40, t41, etc.)\n");
@@ -176,8 +176,8 @@ thingino_error_t parse_arguments(int argc, char *argv[], cli_options_t *options)
             exit(0);
         } else if (strcmp(argv[i], "--skip-ddr") == 0) {
             options->skip_ddr = true;
-        } else if (strcmp(argv[i], "--erase") == 0) {
-            options->force_erase = true;
+        } else if (strcmp(argv[i], "--no-erase") == 0) {
+            options->no_erase = true;
         } else if (strcmp(argv[i], "--reboot") == 0) {
             options->reboot_after = true;
         } else if (strcmp(argv[i], "--chunk-size") == 0) {
@@ -399,7 +399,7 @@ int main(int argc, char *argv[]) {
     /* Write firmware */
     if (options.write_firmware && options.input_file) {
         result = cloner_op_write_firmware(
-            &manager, options.device_index, options.input_file, detected_cpu, options.flash_chip, options.force_erase,
+            &manager, options.device_index, options.input_file, detected_cpu, options.flash_chip, options.no_erase,
             options.reboot_after, options.bootstrap, options.verbose, options.skip_ddr, options.config_file,
             options.spl_file, options.uboot_file, options.firmware_dir, options.chunk_size);
         if (result != THINGINO_SUCCESS)

@@ -22,7 +22,7 @@
  * @return THINGINO_SUCCESS on success, error code otherwise
  */
 thingino_error_t write_firmware_to_device(usb_device_t *device, const char *firmware_file,
-                                          const firmware_binary_t *fw_binary, bool force_erase, bool is_a1_board,
+                                          const firmware_binary_t *fw_binary, bool no_erase, bool is_a1_board,
                                           uint32_t chunk_size);
 
 /**

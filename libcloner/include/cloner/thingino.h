@@ -350,7 +350,7 @@ thingino_error_t firmware_handshake_init(usb_device_t *device);
 
 // Firmware writer functions
 thingino_error_t write_firmware_to_device(usb_device_t *device, const char *firmware_file,
-                                          const firmware_binary_t *fw_binary, bool force_erase, bool is_a1_board,
+                                          const firmware_binary_t *fw_binary, bool no_erase, bool is_a1_board,
                                           uint32_t chunk_size);
 thingino_error_t send_bulk_data(usb_device_t *device, uint8_t endpoint, const uint8_t *data, uint32_t size);
 
@@ -374,7 +374,7 @@ thingino_error_t cloner_op_read_firmware(usb_manager_t *manager, int index, cons
                                          const char *force_cpu, const char *flash_chip_name);
 
 thingino_error_t cloner_op_write_firmware(usb_manager_t *manager, int device_index, const char *firmware_file,
-                                          const char *force_cpu, const char *flash_chip_name, bool force_erase,
+                                          const char *force_cpu, const char *flash_chip_name, bool no_erase,
                                           bool reboot_after, bool do_bootstrap, bool verbose, bool skip_ddr,
                                           const char *config_file, const char *spl_file, const char *uboot_file,
                                           const char *firmware_dir, uint32_t chunk_size);

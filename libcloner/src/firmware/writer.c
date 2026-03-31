@@ -120,14 +120,14 @@ static void firmware_wait_for_erase_ready(usb_device_t *device, int min_wait_ms,
  * - Send firmware in 128KB chunks (T31x) or 1MB chunks (A1)
  */
 thingino_error_t write_firmware_to_device(usb_device_t *device, const char *firmware_file,
-                                          const firmware_binary_t *fw_binary, bool force_erase, bool is_a1_board,
+                                          const firmware_binary_t *fw_binary, bool no_erase, bool is_a1_board,
                                           uint32_t chunk_size_arg) {
 
     if (!device || !firmware_file) {
         return THINGINO_ERROR_INVALID_PARAMETER;
     }
 
-    (void)force_erase; // Currently unused; reserved for future erase-policy control
+    (void)no_erase; // Erase control is in the flash descriptor, not the writer
 
     LOG_INFO("Writing firmware to device...\n");
     LOG_INFO("  Firmware file: %s\n", firmware_file);
