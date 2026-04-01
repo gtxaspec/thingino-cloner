@@ -16,3 +16,5 @@ android/app/.cxx/
 android/.gradle/
 android/local.properties
 android/thingino-release.jks
+web/dist/
+web/public/firmware/

@@ -3,7 +3,22 @@
 
 #include <stdint.h>
 
-#if defined(_WIN32)
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#include <strings.h>
+static inline void thingino_sleep_seconds(uint32_t seconds) {
+    emscripten_sleep(seconds * 1000);
+}
+static inline void thingino_sleep_milliseconds(uint32_t milliseconds) {
+    emscripten_sleep(milliseconds);
+}
+static inline void thingino_sleep_microseconds(uint32_t microseconds) {
+    emscripten_sleep((microseconds + 999) / 1000);
+}
+static inline int thingino_strcasecmp(const char *a, const char *b) {
+    return strcasecmp(a, b);
+}
+#elif defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif

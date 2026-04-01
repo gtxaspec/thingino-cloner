@@ -1,7 +1,7 @@
 #include "thingino.h"
 #include "platform.h"
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__EMSCRIPTEN__)
 #include <sys/ioctl.h>
 #include <linux/usbdevice_fs.h>
 #include <fcntl.h>

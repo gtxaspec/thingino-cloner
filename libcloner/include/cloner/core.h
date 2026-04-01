@@ -96,6 +96,12 @@ const void *cloner_find_ddr_chip(const char *name);
 cloner_error_t cloner_generate_ddr(const char *processor_name, uint8_t *out, size_t *out_len);
 
 /**
+ * Override the variant for a discovered device.
+ * Use after bootstrap when re-enumeration loses the original variant.
+ */
+cloner_error_t cloner_set_device_variant(int device_index, cloner_variant_t variant);
+
+/**
  * Variant name conversion utilities.
  */
 const char *cloner_variant_to_string(cloner_variant_t variant);

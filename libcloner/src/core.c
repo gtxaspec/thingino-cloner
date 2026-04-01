@@ -280,29 +280,35 @@ cloner_error_t cloner_read_firmware(int device_index, uint8_t **firmware, size_t
     if (!firmware || !len)
         return CLONER_ERR_PARAM;
 
-    report_progress(progress, user_data, 10, "read", "Opening device...");
+    report_progress(progress, user_data, 10, "read", "Starting read...");
 
-    usb_device_t *device = NULL;
-    thingino_error_t result = usb_manager_open_device(&g_manager, &g_devices[device_index], &device);
-    if (result != THINGINO_SUCCESS)
-        return CLONER_ERR_DEVICE;
+    /* Use the full operations-layer read flow (partition marker + descriptor
+     * + handshake + chunked read).  It writes to a file, so use a temp. */
+    char tmpfile[] = "/tmp/cloner-rd-XXXXXX";
+    int tmpfd = mkstemp(tmpfile);
+    if (tmpfd < 0)
+        return CLONER_ERR_FILE;
+    close(tmpfd);
 
-    report_progress(progress, user_data, 30, "read", "Reading flash...");
+    report_progress(progress, user_data, 20, "read", "Reading flash...");
 
-    uint8_t *data = NULL;
-    int actual_len = 0;
-    result = protocol_vendor_style_read(device, 0, 8 * 1024 * 1024, &data, &actual_len);
-
-    usb_device_close(device);
-    free(device);
-
-    if (result != THINGINO_SUCCESS || !data) {
-        free(data);
+    /* Pass the known variant so cloner_op_read_firmware uses the correct
+     * platform profile, even after re-enumeration in firmware stage. */
+    const char *cpu_override = processor_variant_to_string(g_devices[device_index].variant);
+    thingino_error_t result = cloner_op_read_firmware(&g_manager, device_index, tmpfile, cpu_override, NULL);
+    if (result != THINGINO_SUCCESS) {
+        unlink(tmpfile);
         return CLONER_ERR_TRANSFER;
     }
 
-    *firmware = data;
-    *len = actual_len;
+    report_progress(progress, user_data, 90, "read", "Loading data...");
+
+    /* Read temp file into buffer */
+    result = load_file(tmpfile, firmware, len);
+    unlink(tmpfile);
+
+    if (result != THINGINO_SUCCESS)
+        return CLONER_ERR_FILE;
 
     report_progress(progress, user_data, 100, "read", "Complete");
     return CLONER_OK;
@@ -333,6 +339,15 @@ cloner_error_t cloner_generate_ddr(const char *processor_name, uint8_t *out, siz
     ddr_chip_to_phy_params(chip, platform.ddr_freq, &params);
 
     *out_len = ddr_build_binary(&platform, &params, out);
+    return CLONER_OK;
+}
+
+cloner_error_t cloner_set_device_variant(int device_index, cloner_variant_t variant) {
+    if (!g_initialized)
+        return CLONER_ERR_USB_INIT;
+    if (device_index < 0 || device_index >= g_device_count)
+        return CLONER_ERR_PARAM;
+    g_devices[device_index].variant = (processor_variant_t)variant;
     return CLONER_OK;
 }
 
