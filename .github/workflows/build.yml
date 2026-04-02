@@ -36,7 +36,7 @@ jobs:
           cp -r firmwares dist/thingino-cloner-linux-x86_64/
           cd dist && tar czf thingino-cloner-linux-x86_64.tar.gz thingino-cloner-linux-x86_64
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: thingino-cloner-linux-x86_64
           path: dist/thingino-cloner-linux-x86_64.tar.gz
@@ -68,7 +68,7 @@ jobs:
           cp -r firmwares dist/thingino-cloner-linux-aarch64/
           cd dist && tar czf thingino-cloner-linux-aarch64.tar.gz thingino-cloner-linux-aarch64
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: thingino-cloner-linux-aarch64
           path: dist/thingino-cloner-linux-aarch64.tar.gz
@@ -95,7 +95,7 @@ jobs:
           cp -r firmwares dist/thingino-cloner-windows-x64/
           cd dist && zip -r thingino-cloner-windows-x64.zip thingino-cloner-windows-x64
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: thingino-cloner-windows-x64
           path: dist/thingino-cloner-windows-x64.zip
@@ -135,7 +135,7 @@ jobs:
           cp -r firmwares dist/thingino-cloner-macos-universal/
           cd dist && tar czf thingino-cloner-macos-universal.tar.gz thingino-cloner-macos-universal
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: thingino-cloner-macos-universal
           path: dist/thingino-cloner-macos-universal.tar.gz
@@ -146,10 +146,14 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+          /tmp/emsdk/emsdk install latest
+          /tmp/emsdk/emsdk activate latest
 
       - name: Build WASM
         run: |
+          source /tmp/emsdk/emsdk_env.sh
           mkdir -p web/build && cd web/build
           emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
           emmake make -j$(nproc)
@@ -165,7 +169,7 @@ jobs:
           cp -r firmwares/* dist/thingino-cloner-web/public/firmware/
           cd dist && tar czf thingino-cloner-web.tar.gz thingino-cloner-web
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: thingino-cloner-web
           path: dist/thingino-cloner-web.tar.gz
@@ -199,7 +203,7 @@ jobs:
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk dist/thingino-cloner-android.apk
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: thingino-cloner-android
           path: dist/thingino-cloner-android.apk
@@ -211,7 +215,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
