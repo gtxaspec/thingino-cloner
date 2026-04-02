@@ -140,14 +140,14 @@ async function loadFirmwareFileToMemFS(variant) {
         var url = 'public/firmware/' + dir + '/' + files[i];
         var memPath = basePath + '/' + files[i];
 
-        log('Fetching ' + url + '...');
+        console.log('Fetching ' + url + '...');
         var response = await fetch(url);
         if (!response.ok) {
             throw new Error('Failed to fetch ' + url + ': ' + response.status);
         }
         var data = new Uint8Array(await response.arrayBuffer());
         Module.FS.writeFile(memPath, data);
-        log('Loaded ' + files[i] + ': ' + data.length + ' bytes');
+        console.log('Loaded ' + files[i] + ': ' + data.length + ' bytes');
     }
 
     // ddr.bin not fetched — always generated dynamically by the C DDR system
@@ -211,7 +211,7 @@ async function discoverDevices() {
 /* ------------------------------------------------------------------ */
 
 async function initModule() {
-    log('Loading WASM module...');
+    console.log('Loading WASM module...');
 
     try {
         Module = await createClonerModule({
@@ -231,7 +231,7 @@ async function initModule() {
             },
         });
 
-        log('WASM module loaded (' +
+        console.log('WASM module loaded (' +
             (Module.HEAPU8.length / 1024 / 1024).toFixed(1) + ' MB heap)');
 
         // {async:true} is required — cloner_init calls libusb_init which is async
@@ -245,9 +245,9 @@ async function initModule() {
         try { Module.FS.mkdir('/tmp'); } catch (e) { /* exists */ }
 
         clonerReady = true;
-        log('Ready — click "Connect Device" to begin');
+        log('Ready — click Connect Device to begin');
     } catch (e) {
-        log('Failed to load WASM: ' + e.message, 'error');
+        log('Failed to initialize — check console for details', 'error');
         console.error(e);
     }
 }
@@ -294,11 +294,11 @@ async function connectDevice() {
         var already = window._webusb_devices.some(function(d) { return d === device; });
         if (!already) window._webusb_devices.push(device);
 
-        log('Device selected: VID=0x' + device.vendorId.toString(16) +
+        console.log('Device selected: VID=0x' + device.vendorId.toString(16) +
             ' PID=0x' + device.productId.toString(16));
 
         setState('detecting');
-        log('Discovering devices...');
+        console.log('Discovering devices...');
 
         var info = await discoverDevices();
         if (!info) {
@@ -352,7 +352,7 @@ async function doBootstrap() {
         }
 
         showProgress(80, 'Re-discovering device...');
-        log('Bootstrap complete, re-discovering device...');
+        console.log('Bootstrap complete, re-discovering device...');
 
         // Re-discover to update device state (now in firmware stage)
         var info = await discoverDevices();
@@ -512,7 +512,7 @@ async function doRead() {
         // Set correct variant after re-discovery
         Module.ccall('cloner_set_device_variant', 'number',
             ['number', 'number'], [0, detectedVariant]);
-        log('Read target: ' + detectedVariantName + ' (' + (readInfo.stage === 0 ? 'Bootrom' : 'Firmware') + ')');
+        console.log('Read target: ' + detectedVariantName + ' (' + (readInfo.stage === 0 ? 'Bootrom' : 'Firmware') + ')');
 
         // Preload firmware to MEMFS — cloner_op_read_firmware may bootstrap internally
         await loadFirmwareFileToMemFS(detectedVariantName);
@@ -585,11 +585,11 @@ async function doRead() {
     }
 
     navigator.usb.addEventListener('connect', function(e) {
-        log('USB device connected: VID=0x' + e.device.vendorId.toString(16) +
+        console.log('USB device connected: VID=0x' + e.device.vendorId.toString(16) +
             ' PID=0x' + e.device.productId.toString(16));
     });
     navigator.usb.addEventListener('disconnect', function(e) {
-        log('USB device disconnected', 'warn');
+        console.log('USB device disconnected');
     });
 
     setState('idle');
