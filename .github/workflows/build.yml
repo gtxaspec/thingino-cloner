@@ -160,12 +160,10 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p dist/thingino-cloner-web
-          cp web/dist/cloner.js dist/thingino-cloner-web/
-          cp web/dist/cloner.wasm dist/thingino-cloner-web/
+          mkdir -p dist/thingino-cloner-web/dist dist/thingino-cloner-web/src dist/thingino-cloner-web/public/firmware
+          cp web/dist/cloner.js web/dist/cloner.wasm dist/thingino-cloner-web/dist/
           cp web/index.html dist/thingino-cloner-web/
-          cp -r web/src dist/thingino-cloner-web/src
-          mkdir -p dist/thingino-cloner-web/public/firmware
+          cp web/src/app.js dist/thingino-cloner-web/src/
           cp -r firmwares/* dist/thingino-cloner-web/public/firmware/
           cd dist && tar czf thingino-cloner-web.tar.gz thingino-cloner-web
 
