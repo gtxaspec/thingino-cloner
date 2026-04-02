@@ -98,6 +98,12 @@ function setState(state) {
     badge.className = 'badge bg-' + info[1] + ' ms-auto';
 
     var busy = ['connecting', 'detecting', 'bootstrapping', 'writing', 'reading'].indexOf(state) !== -1;
+    var warn = document.getElementById('op-warning');
+    if (['bootstrapping', 'writing', 'reading'].indexOf(state) !== -1) {
+        warn.classList.remove('d-none');
+    } else {
+        warn.classList.add('d-none');
+    }
     document.getElementById('btn-connect').disabled = busy;
     document.getElementById('btn-bootstrap').disabled = busy || state === 'idle';
     document.getElementById('btn-write').disabled = busy || state === 'idle';
