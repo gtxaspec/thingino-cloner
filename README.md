@@ -29,6 +29,19 @@ Requires `libusb` from Homebrew (`brew install libusb`).
 make
 ```
 
+### Web (WASM + WebUSB)
+
+Requires [Emscripten](https://emscripten.org/).
+
+```
+cd web
+bash build.sh
+```
+
+Output: `web/dist/cloner.js` + `web/dist/cloner.wasm`. Serve `web/` with any HTTP server and open in Chrome/Edge. Copy `firmwares/` to `web/public/firmware/` for the bootstrap binaries.
+
+The web flasher compiles the entire C library to WebAssembly and replaces libusb with a WebUSB shim. Supports detect, bootstrap, read, and write directly from the browser — no install required. Requires HTTPS or localhost.
+
 ### Android
 
 Requires Android SDK, NDK 27, and Java 17.
@@ -55,6 +68,7 @@ Output binaries:
 - ARM64: `build-aarch64/cli/thingino-cloner`
 - Windows: `build-win64/cli/thingino-cloner.exe` + `libusb-1.0.dll`
 - Android: `android/app/build/outputs/apk/release/app-release.apk`
+- Web: `web/dist/cloner.js` + `web/dist/cloner.wasm` (serve with any HTTP server)
 
 ## Usage
 
