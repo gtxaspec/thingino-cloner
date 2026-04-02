@@ -258,7 +258,11 @@ cloner_error_t cloner_write_firmware(int device_index, const uint8_t *firmware, 
         NULL,           /* force_cpu (auto) */
         NULL,           /* flash_chip_name (auto-detect) */
         false,          /* no_erase */
+#ifdef __EMSCRIPTEN__
+        true,           /* reboot_after (web flasher: auto-reboot) */
+#else
         false,          /* reboot_after */
+#endif
         false,          /* do_bootstrap (let ops handle it) */
         false,          /* verbose */
         false,          /* skip_ddr */
@@ -314,6 +318,18 @@ cloner_error_t cloner_read_firmware(int device_index, uint8_t **firmware, size_t
 
     if (result != THINGINO_SUCCESS)
         return CLONER_ERR_FILE;
+
+#ifdef __EMSCRIPTEN__
+    /* Web flasher: reboot device after read so it boots the firmware */
+    {
+        usb_device_t *rdev = NULL;
+        if (usb_manager_open_device(&g_manager, &g_devices[device_index], &rdev) == THINGINO_SUCCESS) {
+            usb_device_vendor_request(rdev, REQUEST_TYPE_VENDOR, VR_REBOOT, 0, 0, NULL, 0, NULL, NULL);
+            usb_device_close(rdev);
+            free(rdev);
+        }
+    }
+#endif
 
     report_progress(progress, user_data, 100, "read", "Complete");
     return CLONER_OK;
