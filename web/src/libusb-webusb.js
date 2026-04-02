@@ -235,17 +235,6 @@ mergeInto(LibraryManager.library, {
                       request: bRequest, value: wValue, index: wIndex };
         var timeoutMs = (timeout && timeout > 0) ? timeout : 5000;
 
-        // VR_FW_READ (0x10) IN: ACK polling after chunk write.
-        // WebUSB can't complete this because pending fire-and-forget VR_WRITE
-        // control transfers block the control pipe. Return fake success (4 bytes
-        // of zeros = ACK OK). The device has already received the data via bulk.
-        if (bRequest === 0x10 && isIn) {
-            for (var i = 0; i < wLength && i < 4; i++) {
-                {{{ makeSetValue('data_ptr', 'i', '0', 'i8') }}};
-            }
-            return wLength < 4 ? wLength : 4;
-        }
-
         return Asyncify.handleAsync(function() {
             var transferPromise;
             if (isIn) {
@@ -265,20 +254,10 @@ mergeInto(LibraryManager.library, {
                         sendData[i] = {{{ makeGetValue('data_ptr', 'i', 'i8') }}} & 0xFF;
                     }
                 }
-                // VR_WRITE (0x12) and VR_FLUSH_CACHE (0x03): device doesn't ACK
-                // the status phase. Fire the transfer and return success after
-                // a settle delay — data reaches the device during DATA phase.
-                if (bRequest === 0x12 || bRequest === 0x03) {
-                    device.controlTransferOut(setup, sendData).catch(function() {});
-                    transferPromise = new Promise(function(resolve) {
-                        setTimeout(function() { resolve(sendData.length); }, 200);
-                    });
-                } else {
-                    transferPromise = device.controlTransferOut(setup, sendData).then(function(result) {
-                        if (result.status !== 'ok') return -9;
-                        return result.bytesWritten;
-                    });
-                }
+                transferPromise = device.controlTransferOut(setup, sendData).then(function(result) {
+                    if (result.status !== 'ok') return -9;
+                    return result.bytesWritten;
+                });
             }
             // Race against timeout
             var timeoutPromise = new Promise(function(_, reject) {

@@ -405,14 +405,19 @@ function firmwareSelected(input) {
 async function doWrite() {
     if (!clonerReady || !firmwareData) return;
 
-    // If device is in bootrom stage, bootstrap first
-    var info = discoverDevices();
-    if (info && info.stage === 0) {
+    // Always bootstrap from JS if device is in bootrom — the internal
+    // bootstrap in cloner_op_write_firmware doesn't handle WebUSB re-enumeration
+    var info = await discoverDevices();
+    if (!info) {
+        log('No device found', 'error');
+        setState('error');
+        return;
+    }
+    if (info.stage === 0) {
         log('Device in bootrom stage — bootstrapping first...');
         await doBootstrap();
 
-        // Re-discover after bootstrap
-        info = discoverDevices();
+        info = await discoverDevices();
         if (!info || info.stage === 0) {
             log('Bootstrap failed — device still in bootrom', 'error');
             setState('error');
@@ -423,11 +428,8 @@ async function doWrite() {
     setState('writing');
     showProgress(10, 'Preparing firmware write...');
 
-    // Preload bootstrap firmware to MEMFS in case write needs to bootstrap
+    // Preload bootstrap firmware to MEMFS in case ops layer needs it
     await loadFirmwareFileToMemFS(detectedVariantName);
-    // Set correct variant
-    Module.ccall('cloner_set_device_variant', 'number',
-        ['number', 'number'], [0, detectedVariant]);
 
     log('Writing ' + firmwareFileName + ' (' + firmwareData.length + ' bytes)...');
 
@@ -476,9 +478,14 @@ async function doWrite() {
 async function doRead() {
     if (!clonerReady) return;
 
-    // If device is in bootrom stage, bootstrap first
-    var info = discoverDevices();
-    if (info && info.stage === 0) {
+    // Always bootstrap from JS if device is in bootrom
+    var info = await discoverDevices();
+    if (!info) {
+        log('No device found', 'error');
+        setState('error');
+        return;
+    }
+    if (info.stage === 0) {
         log('Device in bootrom stage — bootstrapping first...');
         await doBootstrap();
     }

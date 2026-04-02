@@ -231,37 +231,43 @@ cloner_error_t cloner_write_firmware(int device_index, const uint8_t *firmware, 
     if (!firmware || len == 0)
         return CLONER_ERR_PARAM;
 
-    report_progress(progress, user_data, 10, "write", "Opening device...");
+    report_progress(progress, user_data, 10, "write", "Preparing...");
 
-    usb_device_t *device = NULL;
-    thingino_error_t result = usb_manager_open_device(&g_manager, &g_devices[device_index], &device);
-    if (result != THINGINO_SUCCESS)
-        return CLONER_ERR_DEVICE;
-
+    /* Write firmware data to a temp file for cloner_op_write_firmware */
     char tmpfile[] = "/tmp/cloner-fw-XXXXXX";
     int tmpfd = mkstemp(tmpfile);
-    if (tmpfd < 0) {
-        usb_device_close(device);
-        free(device);
+    if (tmpfd < 0)
         return CLONER_ERR_FILE;
-    }
     if (write(tmpfd, firmware, len) != (ssize_t)len) {
         close(tmpfd);
         unlink(tmpfile);
-        usb_device_close(device);
-        free(device);
         return CLONER_ERR_FILE;
     }
     close(tmpfd);
 
-    report_progress(progress, user_data, 30, "write", "Writing firmware...");
+    report_progress(progress, user_data, 20, "write", "Writing firmware...");
 
-    bool is_a1 = (g_devices[device_index].variant == VARIANT_A1);
-    result = write_firmware_to_device(device, tmpfile, NULL, false, is_a1, 0);
+    /* Use the full operations-layer write flow (partition marker + descriptor
+     * + erase + handshake + chunked write).
+     * Don't pass force_cpu — let operations.c auto-detect or use the
+     * firmware-stage default profile (T31), which supports JEDEC flash
+     * auto-detect. Forcing the bootrom variant (e.g. T20) selects a
+     * profile that may require --flash-chip. */
+    thingino_error_t result = cloner_op_write_firmware(
+        &g_manager, device_index, tmpfile,
+        NULL,           /* force_cpu (auto) */
+        NULL,           /* flash_chip_name (auto-detect) */
+        false,          /* no_erase */
+        false,          /* reboot_after */
+        false,          /* do_bootstrap (let ops handle it) */
+        false,          /* verbose */
+        false,          /* skip_ddr */
+        NULL, NULL, NULL, /* config/spl/uboot files */
+        "./firmwares",  /* firmware_dir */
+        0               /* chunk_size (default) */
+    );
 
     unlink(tmpfile);
-    usb_device_close(device);
-    free(device);
 
     if (result != THINGINO_SUCCESS)
         return CLONER_ERR_TRANSFER;
@@ -292,10 +298,9 @@ cloner_error_t cloner_read_firmware(int device_index, uint8_t **firmware, size_t
 
     report_progress(progress, user_data, 20, "read", "Reading flash...");
 
-    /* Pass the known variant so cloner_op_read_firmware uses the correct
-     * platform profile, even after re-enumeration in firmware stage. */
-    const char *cpu_override = processor_variant_to_string(g_devices[device_index].variant);
-    thingino_error_t result = cloner_op_read_firmware(&g_manager, device_index, tmpfile, cpu_override, NULL);
+    /* Don't pass force_cpu — let operations.c use the firmware-stage
+     * default profile, which supports JEDEC flash auto-detect. */
+    thingino_error_t result = cloner_op_read_firmware(&g_manager, device_index, tmpfile, NULL, NULL);
     if (result != THINGINO_SUCCESS) {
         unlink(tmpfile);
         return CLONER_ERR_TRANSFER;
