@@ -66,13 +66,13 @@ function log(msg, level) {
 
 function showProgress(percent, label) {
     var container = document.getElementById('progress');
-    container.classList.add('active');
+    container.classList.remove('d-none');
     document.getElementById('progress-fill').style.width = percent + '%';
     document.getElementById('progress-label').textContent = label || '';
 }
 
 function hideProgress() {
-    document.getElementById('progress').classList.remove('active');
+    document.getElementById('progress').classList.add('d-none');
 }
 
 /* ------------------------------------------------------------------ */
@@ -81,29 +81,21 @@ function hideProgress() {
 
 function setState(state) {
     currentState = state;
-    var dot = document.getElementById('status-dot');
-    dot.className = 'status';
+    var badge = document.getElementById('status-badge');
 
-    switch (state) {
-        case 'idle':
-            dot.classList.add('disconnected');
-            break;
-        case 'connecting':
-        case 'detecting':
-            dot.classList.add('bootrom');
-            break;
-        case 'bootstrapping':
-        case 'writing':
-        case 'reading':
-            dot.classList.add('firmware');
-            break;
-        case 'done':
-            dot.classList.add('ready');
-            break;
-        case 'error':
-            dot.classList.add('disconnected');
-            break;
-    }
+    var labels = {
+        idle: ['Idle', 'secondary'],
+        connecting: ['Connecting...', 'warning'],
+        detecting: ['Detecting...', 'warning'],
+        bootstrapping: ['Bootstrapping...', 'warning'],
+        writing: ['Writing...', 'warning'],
+        reading: ['Reading...', 'warning'],
+        done: ['Ready', 'success'],
+        error: ['Error', 'danger'],
+    };
+    var info = labels[state] || ['Unknown', 'secondary'];
+    badge.textContent = info[0];
+    badge.className = 'badge bg-' + info[1] + ' ms-auto';
 
     var busy = ['connecting', 'detecting', 'bootstrapping', 'writing', 'reading'].indexOf(state) !== -1;
     document.getElementById('btn-connect').disabled = busy;
@@ -113,8 +105,8 @@ function setState(state) {
 }
 
 function showDeviceInfo(soc, stage, vid, pid) {
-    document.getElementById('device-disconnected').style.display = 'none';
-    document.getElementById('device-info').style.display = 'grid';
+    document.getElementById('device-disconnected').classList.add('d-none');
+    document.getElementById('device-info').classList.remove('d-none');
     document.getElementById('info-soc').textContent = soc || '—';
     document.getElementById('info-stage').textContent = stage || '—';
     document.getElementById('info-vidpid').textContent =
@@ -574,8 +566,8 @@ async function doRead() {
 
 (function() {
     if (!navigator.usb) {
-        document.getElementById('browser-warning').style.display = 'block';
-        document.getElementById('app').style.display = 'none';
+        document.getElementById('browser-warning').classList.remove('d-none');
+        document.querySelector('.flasher-card').classList.add('d-none');
         return;
     }
 
